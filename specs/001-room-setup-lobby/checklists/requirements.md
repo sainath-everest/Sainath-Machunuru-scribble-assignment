@@ -31,7 +31,7 @@
 
 ## Notes
 
-All items passed on first validation pass. The spec covers all five user stories
-(host creates room, guest joins, auto-polling, host-only start with 2-player minimum,
-room isolation), 15 functional requirements, 5 measurable success criteria, and an
-explicit Non-Goals section bounding the scope to Scenario 1 only.
+All items passed. Updated after clarification session 2026-06-01 (3 questions answered).
+The spec now explicitly covers: non-host lobby behavior on game start (deferred to Scenario
+2), `hostId` included in every RoomSnapshot (FR-016 added), and constant-interval polling
+error recovery (FR-015 tightened). FR count: 16. User stories: 5. Success criteria: 5.

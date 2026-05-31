@@ -118,7 +118,8 @@ player's button remains disabled.
    of participant count, **Then** the Start Game button is either hidden or permanently
    disabled for that participant.
 4. **Given** the host clicks Start Game with 2 or more participants present, **When** the
-   action completes, **Then** the host is navigated to the Game screen.
+   action completes, **Then** the host is navigated to the Game screen. Non-host participants
+   remain on the Lobby screen; their transition to the Game screen is addressed in Scenario 2.
 
 ---
 
@@ -152,9 +153,20 @@ player from Room B, and vice versa.
 - What if a player's name consists entirely of whitespace (e.g., `"   "`)? The backend
   MUST reject it as invalid after trimming; the frontend MUST surface the error.
 - What if the polling request fails (network error, backend down)? The lobby MUST display
-  a non-crashing error indicator and continue polling; it MUST NOT redirect the user away.
+  a non-crashing error indicator and continue polling at the same ~2s interval unchanged;
+  it MUST NOT redirect the user away or alter the polling cadence.
 - What if a player opens the lobby URL directly without having created or joined a room?
   They MUST be redirected to the Start screen.
+
+---
+
+## Clarifications
+
+### Session 2026-06-01
+
+- Q: When the host clicks Start Game, what happens to non-host participants still in the lobby? → A: Non-host auto-navigation is out of scope for Scenario 1; only the host navigates to /game on click. Non-host transition is deferred to Scenario 2.
+- Q: Is `hostId` included in the room snapshot returned to the client? → A: Yes — `hostId` (the creator's participantId) is included in every RoomSnapshot response so the client can determine host identity without inferring from list order.
+- Q: After a polling request fails, what happens to the ~2s polling interval? → A: Continue at the same ~2s interval unchanged; errors are shown in the lobby but the polling cadence never changes.
 
 ---
 
@@ -190,12 +202,20 @@ player from Room B, and vice versa.
 - **FR-014**: The Lobby screen MUST redirect unauthenticated visitors (those without an
   active room session) to the Start screen.
 - **FR-015**: A polling failure MUST display a non-fatal error indicator in the lobby
-  without redirecting the user or stopping future poll attempts.
+  without redirecting the user or stopping future poll attempts. The polling interval
+  MUST remain unchanged (~2s) regardless of how many consecutive failures have occurred.
+- **FR-016**: Every RoomSnapshot response MUST include the `hostId` field containing the
+  participantId of the room creator, so clients can determine host identity without
+  relying on participant list ordering.
 
 ### Key Entities
 
 - **Room**: Represents an active game lobby. Has a unique code, a list of participants, a
-  host identifier (the participant ID of the creator), and a status.
+  `hostId` (the participantId of the creator), and a status. `hostId` is set at creation
+  time and never transferred.
+- **RoomSnapshot**: The read-only room payload returned to clients on every fetch or join.
+  MUST include `hostId` so the client can identify the host without relying on participant
+  list order.
 - **Participant**: A player within a room. Has a unique ID, a display name, and a joined
   timestamp.
 - **RoomSession**: The client-side identity for a player in a specific room. Consists of
@@ -232,8 +252,10 @@ player from Room B, and vice versa.
   needed.
 - Room codes are 4-character strings drawn from an unambiguous alphabet (no O/0, I/1
   confusion). The existing `generateCode` implementation satisfies this.
-- "Start Game" navigating to the Game screen is considered sufficient for Scenario 1.
-  Actual game-state transition on the server is addressed in Scenario 2.
+- "Start Game" navigating the **host** to the Game screen is sufficient for Scenario 1.
+  Non-host participants remain in the lobby; their auto-navigation via polling a status
+  change is addressed in Scenario 2. Actual server-side game-state transition is also
+  deferred to Scenario 2.
 - There is no persistent host re-election if the host leaves. Out of scope.
 
 ---
