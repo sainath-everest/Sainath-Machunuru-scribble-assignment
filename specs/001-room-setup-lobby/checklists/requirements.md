@@ -31,7 +31,9 @@
 
 ## Notes
 
-All items passed. Updated after clarification session 2026-06-01 (3 questions answered).
-The spec now explicitly covers: non-host lobby behavior on game start (deferred to Scenario
-2), `hostId` included in every RoomSnapshot (FR-016 added), and constant-interval polling
-error recovery (FR-015 tightened). FR count: 16. User stories: 5. Success criteria: 5.
+All items passed. Updated after clarification session 2026-06-01 (3 questions answered)
+and scope review pass. The spec covers: non-host lobby behavior on game start (host
+navigates only; non-hosts remain in lobby — no forward coupling to other scenarios),
+`hostId` included in every RoomSnapshot (FR-016 added), and constant-interval polling
+error recovery (FR-015 tightened). All Scenario 1 artifacts are clean of future-scenario
+references. FR count: 16. User stories: 5. Success criteria: 5.

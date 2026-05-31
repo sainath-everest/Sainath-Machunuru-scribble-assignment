@@ -119,7 +119,7 @@ player's button remains disabled.
    disabled for that participant.
 4. **Given** the host clicks Start Game with 2 or more participants present, **When** the
    action completes, **Then** the host is navigated to the Game screen. Non-host participants
-   remain on the Lobby screen; their transition to the Game screen is addressed in Scenario 2.
+   remain on the Lobby screen with the Start Game button hidden or disabled.
 
 ---
 
@@ -164,7 +164,7 @@ player from Room B, and vice versa.
 
 ### Session 2026-06-01
 
-- Q: When the host clicks Start Game, what happens to non-host participants still in the lobby? → A: Non-host auto-navigation is out of scope for Scenario 1; only the host navigates to /game on click. Non-host transition is deferred to Scenario 2.
+- Q: When the host clicks Start Game, what happens to non-host participants still in the lobby? → A: Only the host navigates to /game on click. Non-host participants remain in the lobby with the Start Game button hidden or disabled. Non-host game navigation is not in Scenario 1 scope.
 - Q: Is `hostId` included in the room snapshot returned to the client? → A: Yes — `hostId` (the creator's participantId) is included in every RoomSnapshot response so the client can determine host identity without inferring from list order.
 - Q: After a polling request fails, what happens to the ~2s polling interval? → A: Continue at the same ~2s interval unchanged; errors are shown in the lobby but the polling cadence never changes.
 
@@ -252,10 +252,10 @@ player from Room B, and vice versa.
   needed.
 - Room codes are 4-character strings drawn from an unambiguous alphabet (no O/0, I/1
   confusion). The existing `generateCode` implementation satisfies this.
-- "Start Game" navigating the **host** to the Game screen is sufficient for Scenario 1.
-  Non-host participants remain in the lobby; their auto-navigation via polling a status
-  change is addressed in Scenario 2. Actual server-side game-state transition is also
-  deferred to Scenario 2.
+- "Start Game" navigating the **host** to the Game screen is the complete behavior for
+  Scenario 1. No server-side game-state transition occurs. Non-host participants remain
+  in the lobby with the Start Game button hidden or disabled. Non-host navigation is not
+  in Scenario 1 scope.
 - There is no persistent host re-election if the host leaves. Out of scope.
 
 ---
