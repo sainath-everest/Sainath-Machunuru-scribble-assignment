@@ -53,6 +53,7 @@ export function createRoom(playerName?: string) {
   const participant = createParticipant(playerName);
   const room: Room = {
     code: generateUniqueCode(),
+    hostId: participant.id,
     status: "lobby",
     participants: [participant],
     createdAt: now(),
@@ -101,6 +102,7 @@ export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSn
 
   return {
     code: room.code,
+    hostId: room.hostId,
     status: room.status,
     participants: room.participants.map((participant) => ({ ...participant })),
     availableWords: listWords(),

@@ -9,6 +9,7 @@ export interface Participant {
 
 export interface Room {
   code: string;
+  hostId: string;
   status: RoomStatus;
   participants: Participant[];
   createdAt: string;
@@ -17,6 +18,7 @@ export interface Room {
 
 export interface RoomSnapshot {
   code: string;
+  hostId: string;
   status: RoomStatus;
   participants: Participant[];
   availableWords: string[];
