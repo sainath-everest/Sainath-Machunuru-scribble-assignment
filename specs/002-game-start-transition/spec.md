@@ -42,9 +42,9 @@ exists server-side for the round.
    clicks "Start Game", **Then** the room status changes to `"playing"`, a new round object is
    created with `roundNumber: 1`, a drawer is assigned, a secret word is selected from the
    starter word list, and the host's browser navigates to the game screen.
-2. **Given** the room has transitioned to `"playing"`, **When** any client polls the room,
-   **Then** the response includes `status: "playing"` and the `drawerId`, but the `secretWord`
-   field is **absent** from the shared room payload.
+2. **Given** the room has transitioned to `"playing"`, **When** any client polls `GET /rooms/:code`,
+   **Then** the response includes `status: "playing"` — `drawerId` and `secretWord` are both
+   absent from the room snapshot. Clients must call `GET /rooms/:code/game` to obtain game-phase data.
 3. **Given** the game has already started (status is `"playing"`), **When** the host attempts
    to start again via a second `POST /rooms/:code/start` request, **Then** the server returns
    a `409 Conflict` error and the room state is unchanged.
@@ -139,6 +139,10 @@ visible in Tab B's game view.
   Treated as guesser view; `secretWord` is omitted.
 - What if two clients simultaneously hit the start endpoint? → Only the first request succeeds
   (status transition is atomic); the second receives `409 Conflict`.
+- What if a non-host participant (or an outside caller) sends `POST /rooms/:code/start` with
+  their own `participantId`? → Server returns `403 Forbidden`; game state is unchanged.
+- What if `POST /rooms/:code/start` is called with no `participantId` in the body? → Server
+  returns `403 Forbidden` (treated identically to a non-host caller).
 
 ---
 
@@ -146,10 +150,13 @@ visible in Tab B's game view.
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST expose a `POST /rooms/:code/start` endpoint that transitions a
-  lobby room into the `"playing"` state.
+- **FR-001**: The system MUST expose a `POST /rooms/:code/start` endpoint that accepts a
+  `participantId` field in the request body and transitions a lobby room into the `"playing"` state.
+- **FR-001a**: The start endpoint MUST verify that the supplied `participantId` equals `room.hostId`.
+  If it does not match, the server MUST return `403 Forbidden` with message "Only the host can start the game".
+  If `participantId` is absent from the request body, the server MUST also return `403 Forbidden`.
 - **FR-002**: The start endpoint MUST reject requests when fewer than 2 participants are present
-  with a clear error message.
+  with a `400 Bad Request` and message "Need at least 2 players to start".
 - **FR-003**: The start endpoint MUST reject requests when the room is already in `"playing"`
   status with a `409 Conflict` response.
 - **FR-004**: On a successful start, the system MUST create a round object containing at minimum:
@@ -159,32 +166,39 @@ visible in Tab B's game view.
 - **FR-006**: The `secretWord` MUST be selected randomly from the starter word list.
 - **FR-007**: The `secretWord` MUST be stored server-side only and MUST NOT be included in any
   shared room snapshot accessible to all clients.
-- **FR-008**: The game-state endpoint MUST accept an optional `participantId` query parameter
-  and use it to determine caller identity.
-- **FR-009**: When the requesting `participantId` matches `drawerId`, the game-state response
-  MUST include `secretWord`.
-- **FR-010**: When the requesting `participantId` does NOT match `drawerId` (or is absent),
-  the game-state response MUST omit `secretWord` entirely.
-- **FR-011**: The shared room snapshot (returned by `GET /rooms/:code`) MUST include the
-  updated `status: "playing"` and `drawerId` after the game starts, but MUST NOT include
-  `secretWord`.
-- **FR-012**: The frontend lobby polling logic MUST detect a `status: "playing"` response and
-  automatically navigate non-host players to the game screen.
-- **FR-013**: The host's "Start Game" click MUST navigate them immediately to the game screen
-  on success — no polling required for the host's own transition.
-- **FR-014**: The system MUST NOT modify any Scenario 1 endpoint behavior (`POST /rooms`,
-  `POST /rooms/:code/join`, `GET /rooms/:code` lobby responses).
+- **FR-008**: A new `GET /rooms/:code/game` endpoint MUST be introduced for the playing-state
+  view. It MUST accept an optional `participantId` query parameter to determine caller identity.
+- **FR-009**: When the `participantId` supplied to `GET /rooms/:code/game` matches `drawerId`,
+  the response MUST include `secretWord`.
+- **FR-010**: When the `participantId` does NOT match `drawerId` (or is absent), `GET /rooms/:code/game`
+  MUST omit `secretWord` entirely (field absent, not null).
+- **FR-011**: `GET /rooms/:code` (the existing Scenario 1 endpoint) MUST be extended minimally:
+  when status is `"playing"`, its `RoomSnapshot` response includes the updated `status` field
+  only. It MUST NOT include `drawerId` or `secretWord`; those fields belong exclusively to
+  the `GET /rooms/:code/game` response.
+- **FR-012**: The frontend lobby polling logic (`GET /rooms/:code`) MUST detect a
+  `status: "playing"` response and automatically navigate non-host players to `/game`.
+- **FR-013**: The host's "Start Game" click MUST navigate them immediately to `/game` on API
+  success — no polling required for the host's own transition.
+- **FR-014**: The system MUST NOT modify the request/response contract of `POST /rooms`,
+  `POST /rooms/:code/join`, or the existing fields returned by `GET /rooms/:code` during
+  `status: "lobby"`. The only additive change to `GET /rooms/:code` is the `status` field
+  value changing to `"playing"` — no new fields are added to the RoomSnapshot type.
+- **FR-015**: Once on the game screen, all clients (drawer and guessers) MUST poll
+  `GET /rooms/:code/game?participantId=...` at ~2s to keep game state current. The lobby
+  polling of `GET /rooms/:code` MUST stop when the client leaves the lobby screen.
 
 ### Key Entities
 
 - **Room**: Extended with `status: "lobby" | "playing"` (was `"lobby"` only) and
-  `currentRound: Round | null`.
+  `currentRound: Round | null`. The `RoomSnapshot` (what `GET /rooms/:code` returns) exposes
+  only `status` — it never exposes `drawerId` or `secretWord`.
 - **Round**: New entity — `roundNumber: number`, `drawerId: string`, `secretWord: string`.
   Stored server-side only; never serialized directly into a shared snapshot.
-- **GameSnapshot** (drawer view): What the drawer receives — includes `roundNumber`,
-  `drawerId`, `secretWord`, `participants`, `status`.
-- **GameSnapshot** (guesser view): What non-drawers receive — identical to drawer view but
-  with `secretWord` absent.
+- **GameSnapshot** (drawer view): Returned by `GET /rooms/:code/game?participantId={drawerId}` —
+  includes `status`, `roundNumber`, `drawerId`, `secretWord`, `participants`.
+- **GameSnapshot** (guesser view): Returned by `GET /rooms/:code/game?participantId={other}` or
+  without `participantId` — identical to drawer view but with `secretWord` absent.
 
 ---
 
@@ -203,6 +217,8 @@ visible in Tab B's game view.
   host starting the game — no manual refresh required.
 - **SC-006**: The start endpoint correctly rejects all invalid start attempts (fewer than 2
   players, already playing) with the appropriate error status and message.
+- **SC-007**: 100% of start attempts from a non-host `participantId` (or without one) are
+  rejected with `403 Forbidden` — the game state remains unchanged in every such case.
 
 ---
 
@@ -221,11 +237,22 @@ visible in Tab B's game view.
   functionality (drawing, submitting guesses, receiving scores) is Scenario 3 scope.
 - `hostId` (established in Scenario 1) is the authoritative source for drawer assignment
   preference; no additional role-selection UI is needed.
-- No authentication is required; `participantId` is self-reported and passed as a query
-  parameter. Trust is implicit — the system does not validate that the caller "owns" the
-  `participantId`.
+- No authentication or sessions are used. However, `POST /rooms/:code/start` performs a
+  game-rule integrity check: the supplied `participantId` must equal `room.hostId`. All other
+  endpoints (`GET /rooms/:code/game`) treat `participantId` as self-reported and use it only
+  to determine information visibility (drawer vs guesser view) — not to gatekeep access.
 - HTTP polling by non-host players at ~2s intervals is the mechanism for detecting the
   `"playing"` status transition; no push notifications are used.
+
+---
+
+## Clarifications
+
+### Session 2026-06-01
+
+- Q: Is there a dedicated game-state endpoint separate from `GET /rooms/:code`, or does the same endpoint serve both lobby and game-state views? → A: New dedicated endpoint `GET /rooms/:code/game` is introduced. It returns a `GameSnapshot` and conditionally includes `secretWord` based on the `participantId` query param. `GET /rooms/:code` is kept strictly as the room/lobby metadata endpoint (RoomSnapshot); it is not overloaded with game-state semantics.
+- Q: Once non-host players reach the game screen, do they poll `GET /rooms/:code` or switch to `GET /rooms/:code/game`? → A: Game screen polls `GET /rooms/:code/game?participantId=...` at ~2s. `GET /rooms/:code` only needs to return `status: "playing"` for the lobby-to-game redirect detection — `drawerId` is NOT added to the RoomSnapshot. All game-phase data (drawer identity, secret word visibility) is served exclusively by the game endpoint.
+- Q: Should `POST /rooms/:code/start` validate the caller is the host, or is frontend-only gating sufficient? → A: Require `participantId` in the request body; server validates it equals `room.hostId` and returns `403 Forbidden` if not. This is a game-rule integrity check, not authentication.
 
 ---
 

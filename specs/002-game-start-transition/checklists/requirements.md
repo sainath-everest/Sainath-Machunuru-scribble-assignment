@@ -31,7 +31,10 @@
 
 ## Notes
 
-- FR-014 explicitly guards against Scenario 1 regression — any change to `/rooms`, `/rooms/:code/join`, or `GET /rooms/:code` lobby response is out of scope.
+- Clarified via `/speckit-clarify` session 2026-06-01 (3 questions answered).
+- `GET /rooms/:code/game` is the dedicated game-state endpoint; `GET /rooms/:code` is lobby-only.
+- `drawerId` and `secretWord` are NOT in the `RoomSnapshot` (`GET /rooms/:code`); they live exclusively in `GameSnapshot` (`GET /rooms/:code/game`).
+- `POST /rooms/:code/start` requires `participantId` matching `room.hostId`; returns `403` otherwise.
+- FR-014 contradiction with FR-011 (resolved): `GET /rooms/:code` only changes `status` value; no new fields added.
 - US4 (non-host navigation) depends on Scenario 1 polling loop already being in place (implemented in 001).
-- The `Round` entity and `GameSnapshot` viewer-scoping are the two novel data concepts; both are fully defined in Key Entities.
 - Non-Goals section enumerates Scenario 3 items precisely so no Scenario 3 leakage occurs during planning or implementation.
