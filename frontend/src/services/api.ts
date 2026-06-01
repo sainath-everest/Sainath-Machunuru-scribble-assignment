@@ -15,12 +15,29 @@ export interface RoomSnapshot {
   roles: ParticipantRole[];
 }
 
+export interface StrokePoint {
+  x: number;
+  y: number;
+}
+
+export type Stroke = StrokePoint[];
+
+export interface GuessEntry {
+  participantId: string;
+  text: string;
+  correct: boolean;
+  submittedAt: string;
+}
+
 export interface GameSnapshotBase {
   code: string;
   status: "playing";
   roundNumber: number;
   drawerId: string;
   participants: Participant[];
+  strokes: Stroke[];
+  guesses: GuessEntry[];
+  scores: Record<string, number>;
 }
 
 // secretWord is present only in the drawer's response — absent (not null) for guessers
@@ -79,5 +96,23 @@ export const api = {
   fetchGameState(code: string, participantId?: string) {
     const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
     return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/game${query}`);
+  },
+  addStroke(code: string, participantId: string, points: StrokePoint[]) {
+    return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/canvas/stroke`, {
+      method: "POST",
+      body: JSON.stringify({ participantId, points })
+    });
+  },
+  clearCanvas(code: string, participantId: string) {
+    return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/canvas`, {
+      method: "DELETE",
+      body: JSON.stringify({ participantId })
+    });
+  },
+  submitGuess(code: string, participantId: string, text: string) {
+    return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/guess`, {
+      method: "POST",
+      body: JSON.stringify({ participantId, text })
+    });
   }
 };

@@ -577,6 +577,97 @@ input {
   font-weight: 500;
 }
 
+/* ── ResultPanel ── */
+.result-panel__empty {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.result-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.result-panel__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--surface-soft, #f9fafb);
+}
+
+.result-panel__item--correct {
+  background: #dcfce7;
+}
+
+.result-panel__name {
+  font-weight: 600;
+  color: var(--ink-soft);
+  min-width: 60px;
+}
+
+.result-panel__text {
+  flex: 1;
+  color: var(--ink);
+}
+
+.result-panel__badge {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+/* ── Scoreboard ── */
+.scoreboard__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scoreboard__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--surface-soft, #f9fafb);
+  font-size: 0.875rem;
+}
+
+.scoreboard__name {
+  color: var(--ink);
+}
+
+.scoreboard__score {
+  color: var(--primary, #6366f1);
+  font-size: 1rem;
+}
+
+/* ── DrawingCanvas ── */
+.drawing-canvas-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.drawing-canvas {
+  touch-action: none;
+  user-select: none;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 24px 16px;

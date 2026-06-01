@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
+import { DrawingCanvas } from "../components/DrawingCanvas";
 import { GuessForm } from "../components/GuessForm";
 import { ResultPanel } from "../components/ResultPanel";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
 import { Scoreboard } from "../components/Scoreboard";
+import { api, type StrokePoint } from "../services/api";
 import { useGameState, useGameStore } from "../state/gameStore";
 import { useRoomState } from "../state/roomStore";
 
@@ -40,6 +42,29 @@ export function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleStroke = useCallback(
+    async (points: StrokePoint[]) => {
+      if (!room || !participantId) return;
+      try {
+        const { game: updated } = await api.addStroke(room.code, participantId, points);
+        gameStore.setGame(updated);
+      } catch {
+        // swallow canvas errors — polling will resync
+      }
+    },
+    [room, participantId, gameStore]
+  );
+
+  const handleClearCanvas = useCallback(async () => {
+    if (!room || !participantId) return;
+    try {
+      const { game: updated } = await api.clearCanvas(room.code, participantId);
+      gameStore.setGame(updated);
+    } catch {
+      // swallow canvas errors — polling will resync
+    }
+  }, [room, participantId, gameStore]);
+
   if (!room) {
     return null;
   }
@@ -59,8 +84,14 @@ export function GamePage() {
 
       <div className="game-page__layout">
         <aside className="game-page__sidebar game-page__sidebar--left">
-          <Scoreboard />
-          <ResultPanel />
+          <Scoreboard
+            scores={game?.scores ?? {}}
+            participants={game?.participants ?? room.participants}
+          />
+          <ResultPanel
+            guesses={game?.guesses ?? []}
+            participants={game?.participants ?? room.participants}
+          />
         </aside>
 
         <div className="game-page__main">
@@ -72,12 +103,21 @@ export function GamePage() {
             </Card>
           ) : null}
           <Card title="Canvas">
-            <div
-              className="canvas-placeholder"
-              style={{ minHeight: "500px", backgroundColor: "#ffffff", border: "1px solid #e5e7eb" }}
-            >
-              {game ? "Waiting for drawer to start drawing…" : "Loading game…"}
-            </div>
+            {game ? (
+              <DrawingCanvas
+                strokes={game.strokes}
+                isDrawer={isDrawer}
+                onStroke={handleStroke}
+                onClear={handleClearCanvas}
+              />
+            ) : (
+              <div
+                className="canvas-placeholder"
+                style={{ minHeight: "450px", backgroundColor: "#ffffff", border: "1px solid #e5e7eb" }}
+              >
+                Loading game…
+              </div>
+            )}
           </Card>
           {gameError ? <p className="form__error" style={{ marginTop: "8px" }}>{gameError}</p> : null}
         </div>
@@ -100,9 +140,13 @@ export function GamePage() {
             </dl>
           </Card>
 
-          {!isDrawer ? (
+          {!isDrawer && participantId ? (
             <Card title="Your Guess">
-              <GuessForm />
+              <GuessForm
+                roomCode={room.code}
+                participantId={participantId}
+                onGuessResult={(updated) => gameStore.setGame(updated)}
+              />
             </Card>
           ) : null}
         </aside>

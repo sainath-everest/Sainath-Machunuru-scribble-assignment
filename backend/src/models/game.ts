@@ -7,11 +7,30 @@ export interface Participant {
   joinedAt: string;
 }
 
+// Canvas drawing types
+export interface StrokePoint {
+  x: number;
+  y: number;
+}
+
+export type Stroke = StrokePoint[];
+
+// One accepted guess record within a round
+export interface Guess {
+  participantId: string;
+  text: string;
+  correct: boolean;
+  submittedAt: string;
+}
+
 // Stored server-side only — never serialized into any shared snapshot
 export interface Round {
   roundNumber: number;
   drawerId: string;
   secretWord: string;
+  strokes: Stroke[];
+  guesses: Guess[];
+  scores: Record<string, number>;
 }
 
 export interface Room {
@@ -45,6 +64,9 @@ export interface GameSnapshotBase {
   roundNumber: number;
   drawerId: string;
   participants: Participant[];
+  strokes: Stroke[];
+  guesses: Guess[];
+  scores: Record<string, number>;
 }
 
 export type DrawerGameSnapshot = GameSnapshotBase & { secretWord: string };

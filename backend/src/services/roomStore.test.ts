@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoom, joinRoom, startGame, toGameSnapshot, toRoomSnapshot } from "./roomStore.js";
+import { addStroke, clearCanvas, createRoom, joinRoom, startGame, submitGuess, toGameSnapshot, toRoomSnapshot } from "./roomStore.js";
 import { STARTER_WORDS } from "../seed/starterData.js";
 
 describe("roomStore", () => {
@@ -180,5 +180,157 @@ describe("toGameSnapshot", () => {
     expect(snapshot.drawerId).toBe(host.participantId);
     expect(snapshot.participants).toHaveLength(2);
     expect(snapshot.code).toBe(room.code);
+  });
+
+  it("includes strokes, guesses, and scores in snapshot", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    const { room } = startGame(host.room.code, host.participantId)!;
+
+    const snapshot = toGameSnapshot(room, undefined);
+
+    expect(snapshot.strokes).toEqual([]);
+    expect(snapshot.guesses).toEqual([]);
+    expect(snapshot.scores).toBeDefined();
+  });
+});
+
+describe("addStroke", () => {
+  it("appends a stroke and returns a game snapshot", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    const snapshot = addStroke(host.room.code, host.participantId, [{ x: 10, y: 20 }]);
+
+    expect(snapshot.strokes).toHaveLength(1);
+    expect(snapshot.strokes[0]).toEqual([{ x: 10, y: 20 }]);
+  });
+
+  it("throws 403 when a non-drawer tries to add a stroke", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => addStroke(host.room.code, joiner!.participantId, [{ x: 1, y: 2 }])).toThrow(
+      "Only the drawer can update the canvas"
+    );
+  });
+
+  it("throws 404 for unknown room code", () => {
+    expect(() => addStroke("ZZZZ", "any-id", [{ x: 1, y: 2 }])).toThrow("Room not found");
+  });
+});
+
+describe("clearCanvas", () => {
+  it("clears all strokes and returns a game snapshot", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    addStroke(host.room.code, host.participantId, [{ x: 10, y: 20 }]);
+    const snapshot = clearCanvas(host.room.code, host.participantId);
+
+    expect(snapshot.strokes).toHaveLength(0);
+  });
+
+  it("throws 403 when a non-drawer tries to clear the canvas", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => clearCanvas(host.room.code, joiner!.participantId)).toThrow(
+      "Only the drawer can clear the canvas"
+    );
+  });
+});
+
+describe("submitGuess", () => {
+  it("records the guess and returns a snapshot with it", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    const snapshot = submitGuess(host.room.code, joiner!.participantId, "anything");
+
+    expect(snapshot.guesses).toHaveLength(1);
+    expect(snapshot.guesses[0].text).toBe("anything");
+    expect(snapshot.guesses[0].correct).toBe(false);
+  });
+
+  it("marks correct guess and awards 100 points", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    const gameResult = startGame(host.room.code, host.participantId)!;
+    const secretWord = gameResult.room.currentRound!.secretWord;
+
+    const snapshot = submitGuess(host.room.code, joiner!.participantId, secretWord);
+
+    expect(snapshot.guesses[0].correct).toBe(true);
+    expect(snapshot.scores[joiner!.participantId]).toBe(100);
+  });
+
+  it("is case-insensitive for correct guess matching", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    const gameResult = startGame(host.room.code, host.participantId)!;
+    const secretWord = gameResult.room.currentRound!.secretWord;
+
+    const snapshot = submitGuess(host.room.code, joiner!.participantId, secretWord.toUpperCase());
+
+    expect(snapshot.guesses[0].correct).toBe(true);
+  });
+
+  it("does not award score twice for duplicate correct guess", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    const gameResult = startGame(host.room.code, host.participantId)!;
+    const secretWord = gameResult.room.currentRound!.secretWord;
+
+    submitGuess(host.room.code, joiner!.participantId, secretWord);
+    const snapshot = submitGuess(host.room.code, joiner!.participantId, secretWord);
+
+    expect(snapshot.scores[joiner!.participantId]).toBe(100);
+    expect(snapshot.guesses).toHaveLength(2);
+  });
+
+  it("trims whitespace before recording", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    const snapshot = submitGuess(host.room.code, joiner!.participantId, "  hello  ");
+
+    expect(snapshot.guesses[0].text).toBe("hello");
+  });
+
+  it("throws 400 for an empty guess after trimming", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => submitGuess(host.room.code, joiner!.participantId, "   ")).toThrow(
+      "Guess text cannot be empty"
+    );
+  });
+
+  it("throws 403 when the drawer tries to guess", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => submitGuess(host.room.code, host.participantId, "something")).toThrow(
+      "Drawer cannot submit guesses"
+    );
+  });
+
+  it("throws 404 for an unknown participantId", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => submitGuess(host.room.code, "unknown-id", "something")).toThrow(
+      "Participant not found"
+    );
   });
 });

@@ -32,9 +32,9 @@ except for the two additive extensions to `roomStore.ts` and `game.ts` in Phase 
 
 **Purpose**: Verify the Scenario 2 baseline is green before any Scenario 3 changes begin.
 
-- [ ] T001 [P] Run `cd backend && npm run build` — confirm zero TypeScript errors
-- [ ] T002 [P] Run `cd frontend && npm run build` — confirm zero TypeScript errors
-- [ ] T003 [P] Run `cd backend && npm test` — confirm all 26 Scenario 1 + 2 tests pass
+- [X] T001 [P] Run `cd backend && npm run build` — confirm zero TypeScript errors
+- [X] T002 [P] Run `cd frontend && npm run build` — confirm zero TypeScript errors
+- [X] T003 [P] Run `cd backend && npm test` — confirm all 26 Scenario 1 + 2 tests pass
 
 **Checkpoint**: All three pass green — safe to begin Phase 2.
 
@@ -49,11 +49,11 @@ user story phases build on. All tasks in this phase touch `backend/src/models/ga
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete and the
 backend build is green.
 
-- [ ] T004 Add `StrokePoint` interface (`x: number; y: number`) and `Stroke` type
+- [X] T004 Add `StrokePoint` interface (`x: number; y: number`) and `Stroke` type
   (`StrokePoint[]`) to `backend/src/models/game.ts` — place after the `Guess` import block,
   above the `Round` interface
 
-- [ ] T005 Add `Guess` interface to `backend/src/models/game.ts`:
+- [X] T005 Add `Guess` interface to `backend/src/models/game.ts`:
   ```ts
   export interface Guess {
     participantId: string;
@@ -63,7 +63,7 @@ backend build is green.
   }
   ```
 
-- [ ] T006 Extend the `Round` interface in `backend/src/models/game.ts` with three new fields
+- [X] T006 Extend the `Round` interface in `backend/src/models/game.ts` with three new fields
   (additive only — do NOT remove `roundNumber`, `drawerId`, `secretWord`):
   ```ts
   strokes: Stroke[];
@@ -71,7 +71,7 @@ backend build is green.
   scores: Record<string, number>;
   ```
 
-- [ ] T007 Extend `GameSnapshotBase` in `backend/src/models/game.ts` with the same three
+- [X] T007 Extend `GameSnapshotBase` in `backend/src/models/game.ts` with the same three
   new fields (additive only):
   ```ts
   strokes: Stroke[];
@@ -79,7 +79,7 @@ backend build is green.
   scores: Record<string, number>;
   ```
 
-- [ ] T008 Extend `startGame` in `backend/src/services/roomStore.ts` — add the three new
+- [X] T008 Extend `startGame` in `backend/src/services/roomStore.ts` — add the three new
   `Round` fields when the round object is created (single-line additions inside the existing
   object literal):
   ```ts
@@ -88,7 +88,7 @@ backend build is green.
   scores: Object.fromEntries(room.participants.map((p) => [p.id, 0]))
   ```
 
-- [ ] T009 Extend `toGameSnapshot` in `backend/src/services/roomStore.ts` — spread the
+- [X] T009 Extend `toGameSnapshot` in `backend/src/services/roomStore.ts` — spread the
   three new fields into the `base` object (additive only; `secretWord` conditional unchanged):
   ```ts
   strokes: round.strokes.map((stroke) => stroke.map((pt) => ({ ...pt }))),
@@ -113,7 +113,7 @@ within ~2s; confirm canvas is blank after clear.
 
 ### Backend (T010–T014, sequential within roomStore.ts then rooms.ts)
 
-- [ ] T010 [US1] Add `addStroke(code: string, participantId: string, points: StrokePoint[])` to
+- [X] T010 [US1] Add `addStroke(code: string, participantId: string, points: StrokePoint[])` to
   `backend/src/services/roomStore.ts`:
   - Look up room; return `null` if not found
   - Throw `HttpError(409, "Game has not started yet")` if `!room.currentRound`
@@ -122,7 +122,7 @@ within ~2s; confirm canvas is blank after clear.
   - Push `[...points]` (deep copy) to `room.currentRound.strokes`
   - Persist with `rooms.set(room.code, room)`; return `{ room: cloneRoom(room) }`
 
-- [ ] T011 [US1] Add `clearCanvas(code: string, participantId: string)` to
+- [X] T011 [US1] Add `clearCanvas(code: string, participantId: string)` to
   `backend/src/services/roomStore.ts`:
   - Look up room; return `null` if not found
   - Throw `HttpError(409, "Game has not started yet")` if `!room.currentRound`
@@ -131,7 +131,7 @@ within ~2s; confirm canvas is blank after clear.
   - Set `room.currentRound.strokes = []`
   - Persist with `rooms.set(room.code, room)`; return `{ room: cloneRoom(room) }`
 
-- [ ] T012 [P] [US1] Add `canvasStrokeSchema` and `canvasClearSchema` to
+- [X] T012 [P] [US1] Add `canvasStrokeSchema` and `canvasClearSchema` to
   `backend/src/api/schemas.ts` (parallel with T010–T011 — different file):
   ```ts
   export const canvasStrokeSchema = z.object({
@@ -146,14 +146,14 @@ within ~2s; confirm canvas is blank after clear.
   });
   ```
 
-- [ ] T013 [US1] Add `POST /:code/canvas/stroke` route to `createRoomsRouter` in
+- [X] T013 [US1] Add `POST /:code/canvas/stroke` route to `createRoomsRouter` in
   `backend/src/api/rooms.ts` (after T010, T012):
   - Parse params with `roomCodeParamsSchema`, body with `canvasStrokeSchema`
   - Call `addStroke(code.toUpperCase(), participantId, points)`
   - If `null` → throw `HttpError(404, "Unable to load room")`
   - Respond `200` with `{ game: toGameSnapshot(result.room, participantId) }`
 
-- [ ] T014 [US1] Add `DELETE /:code/canvas` route to `createRoomsRouter` in
+- [X] T014 [US1] Add `DELETE /:code/canvas` route to `createRoomsRouter` in
   `backend/src/api/rooms.ts` (after T011, T013 — same file):
   - Parse params with `roomCodeParamsSchema`, body with `canvasClearSchema`
   - Call `clearCanvas(code.toUpperCase(), participantId)`
@@ -162,7 +162,7 @@ within ~2s; confirm canvas is blank after clear.
 
 ### Backend Unit Tests (T015–T016, parallelizable — different files)
 
-- [ ] T015 [P] [US1] Add `addStroke` and `clearCanvas` unit tests to
+- [X] T015 [P] [US1] Add `addStroke` and `clearCanvas` unit tests to
   `backend/src/services/roomStore.test.ts` in a new `describe("addStroke")` and
   `describe("clearCanvas")` block:
   - `addStroke` happy path: stroke appended to `currentRound.strokes`
@@ -173,7 +173,7 @@ within ~2s; confirm canvas is blank after clear.
   - `clearCanvas` 403: non-drawer `participantId` throws
   - `clearCanvas` 409: game not started throws
 
-- [ ] T016 [P] [US1] Add `canvasStrokeSchema` and `canvasClearSchema` unit tests to
+- [X] T016 [P] [US1] Add `canvasStrokeSchema` and `canvasClearSchema` unit tests to
   `backend/src/api/schemas.test.ts`:
   - `canvasStrokeSchema` accepts valid body
   - `canvasStrokeSchema` rejects missing `participantId`
@@ -183,7 +183,7 @@ within ~2s; confirm canvas is blank after clear.
 
 ### Frontend (T017–T020)
 
-- [ ] T017 [P] [US1] Extend `frontend/src/services/api.ts` (parallel with backend — different project):
+- [X] T017 [P] [US1] Extend `frontend/src/services/api.ts` (parallel with backend — different project):
   - Add `export interface StrokePoint { x: number; y: number; }`
   - Add `export type Stroke = StrokePoint[];`
   - Extend `GameSnapshotBase` to add `strokes: Stroke[]` field
@@ -202,7 +202,7 @@ within ~2s; confirm canvas is blank after clear.
     );
     ```
 
-- [ ] T018 [P] [US1] Add `submitStroke` and `clearCanvas` methods to `GameStore` in
+- [X] T018 [P] [US1] Add `submitStroke` and `clearCanvas` methods to `GameStore` in
   `frontend/src/state/gameStore.ts` (parallel with backend tests — different file):
   ```ts
   async submitStroke(code: string, participantId: string, points: StrokePoint[]) {
@@ -228,7 +228,7 @@ within ~2s; confirm canvas is blank after clear.
   ```
   Import `StrokePoint` from `../services/api`.
 
-- [ ] T019 [US1] Create `frontend/src/components/DrawingCanvas.tsx` (new file):
+- [X] T019 [US1] Create `frontend/src/components/DrawingCanvas.tsx` (new file):
   - Props: `isDrawer: boolean`, `strokes: Stroke[]`, `code: string`, `participantId: string`
   - Ref a `<canvas>` element at a fixed size (e.g., 600×400 or CSS-sized)
   - **Render effect** (`useEffect` on `strokes`): clear context → for each stroke, `ctx.beginPath()`, `ctx.moveTo(stroke[0].x, stroke[0].y)`, `ctx.lineTo(pt.x, pt.y)` for subsequent points, `ctx.stroke()`
@@ -237,7 +237,7 @@ within ~2s; confirm canvas is blank after clear.
   - **Guesser mode** (`isDrawer === false`): no pointer event handlers; canvas is read-only; same `strokes` render effect re-draws on each prop change
   - Import `useGameStore` from `../state/gameStore` and `type Stroke, type StrokePoint` from `../services/api`
 
-- [ ] T020 [US1] Update `frontend/src/pages/GamePage.tsx`:
+- [X] T020 [US1] Update `frontend/src/pages/GamePage.tsx`:
   - Import `DrawingCanvas` from `../components/DrawingCanvas`
   - Replace the existing `<Card title="Canvas"><div className="canvas-placeholder">…</div></Card>` with:
     ```tsx
@@ -267,7 +267,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
 
 ### Backend (T021–T023, sequential within roomStore.ts then rooms.ts)
 
-- [ ] T021 [US2] Add `submitGuess(code: string, participantId: string, text: string)` to
+- [X] T021 [US2] Add `submitGuess(code: string, participantId: string, text: string)` to
   `backend/src/services/roomStore.ts`:
   - Look up room; return `null` if not found
   - Throw `HttpError(409, "Game has not started yet")` if `!room.currentRound`
@@ -284,7 +284,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
     `room.currentRound.guesses`
   - Persist with `rooms.set(room.code, room)`; return `{ room: cloneRoom(room) }`
 
-- [ ] T022 [P] [US2] Add `guessSchema` to `backend/src/api/schemas.ts` (parallel with T021 — different file):
+- [X] T022 [P] [US2] Add `guessSchema` to `backend/src/api/schemas.ts` (parallel with T021 — different file):
   ```ts
   export const guessSchema = z.object({
     participantId: z.string({ required_error: "Participant ID is required" })
@@ -294,7 +294,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
   });
   ```
 
-- [ ] T023 [US2] Add `POST /:code/guess` route to `createRoomsRouter` in
+- [X] T023 [US2] Add `POST /:code/guess` route to `createRoomsRouter` in
   `backend/src/api/rooms.ts` (after T021, T022 — same file as T013/T014):
   - Parse params with `roomCodeParamsSchema`, body with `guessSchema`
   - Call `submitGuess(code.toUpperCase(), participantId, text)`
@@ -303,7 +303,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
 
 ### Backend Unit Tests (T024–T025, parallelizable — different files)
 
-- [ ] T024 [P] [US2] Add `submitGuess` unit tests to `backend/src/services/roomStore.test.ts`
+- [X] T024 [P] [US2] Add `submitGuess` unit tests to `backend/src/services/roomStore.test.ts`
   in a new `describe("submitGuess")` block:
   - Happy path correct guess: `correct: true`, `scores[participantId] = 100`
   - Case-insensitive match: "PIZZA" matches "pizza"
@@ -316,7 +316,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
   - Game not started: throws "Game has not started yet"
   - Unknown room: returns `null`
 
-- [ ] T025 [P] [US2] Add `guessSchema` unit tests to `backend/src/api/schemas.test.ts`:
+- [X] T025 [P] [US2] Add `guessSchema` unit tests to `backend/src/api/schemas.test.ts`:
   - Accepts valid `{ participantId, text }`
   - Rejects missing `participantId`
   - Rejects blank `participantId`
@@ -324,7 +324,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
 
 ### Frontend (T026–T029, sequential within api.ts then gameStore.ts then components)
 
-- [ ] T026 [P] [US2] Extend `frontend/src/services/api.ts` (parallel with backend tests — different project):
+- [X] T026 [P] [US2] Extend `frontend/src/services/api.ts` (parallel with backend tests — different project):
   - Add `export interface GuessEntry { participantId: string; text: string; correct: boolean; submittedAt: string; }`
   - Extend `GameSnapshotBase` to add `guesses: GuessEntry[]` and `scores: Record<string, number>`
   - Add `submitGuess(code, participantId, text)` api method:
@@ -335,7 +335,7 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
     );
     ```
 
-- [ ] T027 [P] [US2] Add `submitGuess` method to `GameStore` in
+- [X] T027 [P] [US2] Add `submitGuess` method to `GameStore` in
   `frontend/src/state/gameStore.ts` (parallel with backend tests — different file):
   ```ts
   async submitGuess(code: string, participantId: string, text: string) {
@@ -352,14 +352,14 @@ Submit "WORD" again → score stays 100 (no double-score). Drawer submits → 40
   ```
   Import `GuessEntry` from `../services/api`.
 
-- [ ] T028 [US2] Update `frontend/src/components/GuessForm.tsx`:
+- [X] T028 [US2] Update `frontend/src/components/GuessForm.tsx`:
   - Change signature to accept `code: string` and `participantId: string` props
   - Import `useGameStore` from `../state/gameStore`
   - Add `const [guessError, setGuessError] = useState<string | null>(null)`
   - In `handleSubmit`: trim input → if empty, `setGuessError("Guess cannot be empty")` and return (no network call) → else call `await gameStore.submitGuess(code, participantId, guessText.trim())` → on success clear input and `setGuessError(null)` → on failure display store error via `setGuessError`
   - Render `{guessError ? <p className="form__error">{guessError}</p> : null}` below the input
 
-- [ ] T029 [US2] Update `frontend/src/pages/GamePage.tsx`:
+- [X] T029 [US2] Update `frontend/src/pages/GamePage.tsx`:
   - Add `code={room.code}` and `participantId={participantId ?? ""}` props to `<GuessForm>`
     (the `<GuessForm>` is already rendered conditionally for non-drawers; just add the props)
 
@@ -379,7 +379,7 @@ appear within ~2s with correct name, text, and ✓/✗ indicator.
 > Note: The backend already returns `guesses` in every `GET /rooms/:code/game` response
 > (extended in Phase 2 + T021). This phase adds the frontend rendering only.
 
-- [ ] T030 [US3] Update `frontend/src/components/ResultPanel.tsx`:
+- [X] T030 [US3] Update `frontend/src/components/ResultPanel.tsx`:
   - Change signature to accept `guesses: GuessEntry[]` and `participants: Participant[]` props
   - Import `GuessEntry` from `../services/api` and `Participant` from `../services/api`
   - Replace the static placeholder with a rendered list:
@@ -389,7 +389,7 @@ appear within ~2s with correct name, text, and ✓/✗ indicator.
       (`✓` in green or `✗` in red based on `guess.correct`)
     - Use a simple `<ul>` / `<li>` structure with CSS class `guess-history`
 
-- [ ] T031 [US3] Update `frontend/src/pages/GamePage.tsx`:
+- [X] T031 [US3] Update `frontend/src/pages/GamePage.tsx`:
   - Pass `guesses={game?.guesses ?? []}` and `participants={game?.participants ?? []}` to `<ResultPanel>`
 
 **Checkpoint US3**: Both tabs see all guesses within ~2s per `quickstart.md` Step 13.
@@ -407,7 +407,7 @@ guess, the guesser's score shows 100 on both tabs within ~2s.
 > Note: Scores are already returned in `GET /rooms/:code/game` (Phase 2 + Phase 4 backend).
 > This phase adds the frontend rendering only.
 
-- [ ] T032 [US4] Update `frontend/src/components/Scoreboard.tsx`:
+- [X] T032 [US4] Update `frontend/src/components/Scoreboard.tsx`:
   - Change signature to accept `scores: Record<string, number>` and `participants: Participant[]` props
   - Import `Participant` from `../services/api`
   - Replace the static placeholder with a rendered list:
@@ -416,7 +416,7 @@ guess, the guesser's score shows 100 on both tabs within ~2s.
     - Render as `<ul>` with one `<li>` per entry: participant name + score
     - Use CSS class `scoreboard-list` for styling
 
-- [ ] T033 [US4] Update `frontend/src/pages/GamePage.tsx`:
+- [X] T033 [US4] Update `frontend/src/pages/GamePage.tsx`:
   - Pass `scores={game?.scores ?? {}}` and `participants={game?.participants ?? []}` to `<Scoreboard>`
 
 **Checkpoint US4**: Confirm all 4 US4 acceptance scenarios per `quickstart.md` Step 14 browser test.
@@ -428,10 +428,10 @@ guess, the guesser's score shows 100 on both tabs within ~2s.
 **Purpose**: Confirm all Scenario 3 changes compile, all unit tests pass (including
 Scenarios 1 and 2 regression), and end-to-end acceptance criteria are verified.
 
-- [ ] T034 [P] Run `cd backend && npm run build` — zero TypeScript errors
-- [ ] T035 [P] Run `cd frontend && npm run build` — zero TypeScript errors
-- [ ] T036 [P] Run `cd backend && npm test` — all unit tests pass (Scenarios 1, 2, and 3)
-- [ ] T037 Complete manual 14-step validation following `specs/003-gameplay-interaction/quickstart.md` Steps 1–14
+- [X] T034 [P] Run `cd backend && npm run build` — zero TypeScript errors
+- [X] T035 [P] Run `cd frontend && npm run build` — zero TypeScript errors
+- [X] T036 [P] Run `cd backend && npm test` — all unit tests pass (Scenarios 1, 2, and 3)
+- [X] T037 Complete manual 14-step validation following `specs/003-gameplay-interaction/quickstart.md` Steps 1–14
 
 ---
 

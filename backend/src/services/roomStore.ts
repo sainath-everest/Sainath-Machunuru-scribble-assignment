@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GameSnapshot, Participant, Room, RoomSnapshot } from "../models/game.js";
+import type { GameSnapshot, Guess, Participant, Room, RoomSnapshot, StrokePoint } from "../models/game.js";
 import { HttpError } from "../api/schemas.js";
 import { STARTER_ROLES, STARTER_WORDS } from "../seed/starterData.js";
 
@@ -123,11 +123,108 @@ export function startGame(code: string, participantId: string) {
   const secretWord = STARTER_WORDS[Math.floor(Math.random() * STARTER_WORDS.length)];
 
   room.status = "playing";
-  room.currentRound = { roundNumber: 1, drawerId, secretWord };
+  room.currentRound = {
+    roundNumber: 1,
+    drawerId,
+    secretWord,
+    strokes: [],
+    guesses: [],
+    scores: Object.fromEntries(room.participants.map((p) => [p.id, 0]))
+  };
   room.updatedAt = now();
   rooms.set(room.code, room);
 
   return { room: cloneRoom(room) };
+}
+
+export function addStroke(code: string, participantId: string, points: StrokePoint[]) {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (room.status !== "playing" || !room.currentRound) {
+    throw new HttpError(409, "Game has not started yet");
+  }
+
+  if (participantId !== room.currentRound.drawerId) {
+    throw new HttpError(403, "Only the drawer can update the canvas");
+  }
+
+  room.currentRound.strokes.push(points);
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return toGameSnapshot(room, participantId);
+}
+
+export function clearCanvas(code: string, participantId: string) {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (room.status !== "playing" || !room.currentRound) {
+    throw new HttpError(409, "Game has not started yet");
+  }
+
+  if (participantId !== room.currentRound.drawerId) {
+    throw new HttpError(403, "Only the drawer can clear the canvas");
+  }
+
+  room.currentRound.strokes = [];
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return toGameSnapshot(room, participantId);
+}
+
+export function submitGuess(code: string, participantId: string, text: string) {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (room.status !== "playing" || !room.currentRound) {
+    throw new HttpError(409, "Game has not started yet");
+  }
+
+  const knownIds = room.participants.map((p) => p.id);
+  if (!knownIds.includes(participantId)) {
+    throw new HttpError(404, "Participant not found");
+  }
+
+  if (participantId === room.currentRound.drawerId) {
+    throw new HttpError(403, "Drawer cannot submit guesses");
+  }
+
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    throw new HttpError(400, "Guess text cannot be empty");
+  }
+
+  const correct = trimmed.toLowerCase() === room.currentRound.secretWord.toLowerCase();
+
+  const guess: Guess = {
+    participantId,
+    text: trimmed,
+    correct,
+    submittedAt: now()
+  };
+
+  room.currentRound.guesses.push(guess);
+
+  if (correct && room.currentRound.scores[participantId] === 0) {
+    room.currentRound.scores[participantId] = 100;
+  }
+
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return toGameSnapshot(room, participantId);
 }
 
 export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSnapshot {
@@ -155,7 +252,10 @@ export function toGameSnapshot(room: Room, viewerParticipantId?: string): GameSn
     status: "playing" as const,
     roundNumber: round.roundNumber,
     drawerId: round.drawerId,
-    participants: room.participants.map((participant) => ({ ...participant }))
+    participants: room.participants.map((participant) => ({ ...participant })),
+    strokes: round.strokes.map((stroke) => stroke.map((pt) => ({ ...pt }))),
+    guesses: round.guesses.map((g) => ({ ...g })),
+    scores: { ...round.scores }
   };
 
   if (viewerParticipantId === round.drawerId) {

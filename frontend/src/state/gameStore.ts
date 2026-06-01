@@ -53,6 +53,10 @@ class GameStore {
     }
   }
 
+  setGame(game: GameSnapshot) {
+    this.setState({ game, error: null });
+  }
+
   reset() {
     this.setState({ game: null, error: null, isLoading: false });
   }
