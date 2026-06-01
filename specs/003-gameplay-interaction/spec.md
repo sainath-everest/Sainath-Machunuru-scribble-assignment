@@ -34,24 +34,26 @@ freehand strokes and clear the entire canvas at any time to start over.
 visual medium guessers respond to. All other Scenario 3 mechanics depend on a functional canvas.
 
 **Independent Test**: Log in as the drawer. Confirm the canvas accepts pointer input and
-renders visible strokes. Click "Clear Canvas". Confirm all strokes disappear immediately.
-[NEEDS CLARIFICATION: Confirm that after clearing, a guesser polling the game state also
-sees the cleared canvas — OR confirm the canvas state is local to the drawer only and guessers
-see a static placeholder.]
+renders visible strokes. Complete a stroke (pen-lift) and confirm a `POST /rooms/:code/canvas/stroke`
+request is sent. Click "Clear Canvas" and confirm a `DELETE /rooms/:code/canvas` request is
+sent. On a second tab as a guesser, poll `GET /rooms/:code/game` and confirm the strokes
+appear; after clear, confirm the strokes array is empty.
 
 **Acceptance Scenarios**:
 
 1. **Given** the active round's drawer is viewing the game screen, **When** they press the
    pointer and drag on the canvas, **Then** a continuous freehand stroke is rendered at the
-   correct position on the canvas.
-2. **Given** strokes exist on the canvas, **When** the drawer clicks "Clear Canvas", **Then**
-   all existing strokes are removed from the canvas immediately on the drawer's screen.
-3. **Given** [NEEDS CLARIFICATION: drawing state is stored server-side], **When** a guesser
-   polls the game state, **Then** their canvas reflects the drawer's current drawing. **OR**
-   **Given** drawing state is drawer-local only, **When** a guesser is on the game screen,
-   **Then** they see a static placeholder ("Drawing in progress…") and cannot interact with
-   the canvas.
-4. **Given** a guesser is on the game screen, **When** they attempt to draw, **Then** the
+   correct position on the drawer's canvas.
+2. **Given** a stroke is completed (pen-lift), **When** the drawer's canvas submits it,
+   **Then** the stroke is sent to `POST /rooms/:code/canvas/stroke` and appended to the
+   server-side `currentRound.strokes` array.
+3. **Given** strokes exist server-side, **When** the drawer clicks "Clear Canvas", **Then**
+   `DELETE /rooms/:code/canvas` is called, the server empties `currentRound.strokes`, and
+   all strokes are removed from the drawer's canvas immediately.
+4. **Given** strokes are stored server-side, **When** a guesser polls `GET /rooms/:code/game`,
+   **Then** their canvas re-renders the current `strokes` array reflecting the drawer's
+   drawing within ~2s; an empty strokes array results in a blank canvas.
+5. **Given** a guesser is on the game screen, **When** they attempt to draw, **Then** the
    canvas input is disabled — only the assigned drawer can produce strokes.
 
 ---
@@ -135,9 +137,10 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
 2. **Given** a participant submits a correct guess, **When** any player polls the game state,
    **Then** the scoreboard reflects that participant's updated score (100, or cumulative total
    if they have previously scored) within ~2s.
-3. **Given** [NEEDS CLARIFICATION: a participant submits a correct guess a second time],
-   **When** the server processes it, **Then** their score increments by another 100 (no limit
-   on re-guessing) — OR their score does not change (one scoring event per guesser per round).
+3. **Given** a participant has already scored 100 for a correct guess and submits the correct
+   word again, **When** the server processes it, **Then** the entry is appended to guess
+   history as `correct: true` but the participant's score is NOT incremented a second time —
+   each participant may score 100 at most once per round.
 4. **Given** the drawer is in the participant list, **When** the scoreboard is viewed, **Then**
    the drawer's score is listed as 0 and cannot be incremented via guessing.
 
@@ -151,9 +154,9 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
 - What happens when two guessers simultaneously submit the same correct guess? → Both are
   processed independently; both receive 100 points. No duplicate-suppression logic exists.
 - What if the `participantId` supplied with a guess does not match any known participant? →
-  [NEEDS CLARIFICATION: Reject with `403 Forbidden`; OR accept the guess as an anonymous
-  guesser (scored as a new participant). The more secure option is 403.] Assumption: reject
-  with `404 Not Found` if `participantId` is absent or unknown.
+  The server validates `participantId` against `room.participants` before processing the guess.
+  If absent or unknown, the server returns `404 Not Found` with `"Participant not found"`.
+  This prevents anonymous or fabricated IDs from affecting scores or history.
 - What if the game is not yet in `"playing"` status and a guess arrives? → Server returns
   `409 Conflict: "Game has not started yet"`.
 - What if the room code does not exist? → `404 Not Found`.
@@ -176,11 +179,20 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
   disabled.
 - **FR-002**: The drawer MUST be provided a "Clear Canvas" control. Activating it MUST
   immediately remove all strokes from the canvas on the drawer's screen.
-- **FR-003**: [NEEDS CLARIFICATION: The drawing state (stroke coordinates and clear events)
-  MUST be stored server-side in the `Round` object and included in the `GET /rooms/:code/game`
-  response so that guessers can see the current drawing via polling; OR the canvas is local to
-  the drawer only and guessers see a static placeholder — no drawing data is stored or
-  transmitted server-side.]
+- **FR-003**: Drawing state MUST be stored server-side in `currentRound.strokes` as
+  `Array<Array<{x: number, y: number}>>` — an outer array of strokes, each stroke an ordered
+  array of `{x, y}` points. This array MUST be included in every `GET /rooms/:code/game`
+  response so guessers can re-render the current drawing via polling.
+- **FR-003a**: The system MUST expose `POST /rooms/:code/canvas/stroke` accepting
+  `participantId` (string, required) and `points` (`Array<{x: number, y: number}>`, required)
+  in the request body. On success the stroke is appended to `currentRound.strokes` and the
+  endpoint returns `{ game: GameSnapshot }`.
+- **FR-003b**: The system MUST expose `DELETE /rooms/:code/canvas` accepting `participantId`
+  (string, required) in the request body. On success `currentRound.strokes` is set to `[]`
+  and the endpoint returns `{ game: GameSnapshot }`.
+- **FR-003c**: Both canvas endpoints MUST validate that `participantId` equals
+  `currentRound.drawerId`; if not, return `403 Forbidden` with `"Only the drawer can modify
+  the canvas"`.
 - **FR-004**: Only the participant whose `participantId` matches `currentRound.drawerId` MAY
   produce strokes or trigger a clear. All other participants see the canvas as read-only.
 
@@ -195,8 +207,14 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
   whitespace-only guess and display an inline error message.
 - **FR-008**: If the `participantId` matches `currentRound.drawerId`, the server MUST return
   `403 Forbidden` with message `"Drawer cannot submit guesses"`.
+- **FR-008a**: The server MUST validate that `participantId` exists in `room.participants`;
+  if absent or unknown, return `404 Not Found` with `"Participant not found"`.
 - **FR-009**: The server MUST compare the trimmed, lowercased guess to the trimmed, lowercased
-  `currentRound.secretWord`. A match increments the participant's score by 100. No match adds 0.
+  `currentRound.secretWord`. A match is `correct: true`; otherwise `correct: false`.
+  If `correct: true` AND `currentRound.scores[participantId] === 0`, increment the score by
+  100. If the participant has already scored (score > 0), the guess is recorded as
+  `correct: true` but the score is NOT incremented again — each participant scores at most
+  once per round.
 - **FR-010**: Every accepted guess (correct or incorrect) MUST be appended to
   `currentRound.guesses` as an entry containing at minimum: `participantId`, `text` (trimmed),
   and `correct` (boolean).
@@ -218,21 +236,28 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
 - **FR-016**: The game-screen polling interval MUST remain ~2s (established in Scenario 2).
   Guess history and scores are included in the same `GET /rooms/:code/game` response — no
   separate polling endpoint is needed.
-- **FR-017**: [NEEDS CLARIFICATION: A participant MAY submit multiple correct guesses and
-  each correct guess adds 100 to their score (no cap); OR each participant's score for a
-  correct guess is capped — a second correct submission from the same participant is recorded
-  in history but adds 0 points.]
+- **FR-017**: Each participant's score increment for a correct guess is capped at one event
+  per round. A second correct submission from the same participant is appended to history
+  with `correct: true` but adds 0 to `currentRound.scores[participantId]`.
+- **FR-018**: On a successful guess submission, `POST /rooms/:code/guess` MUST return
+  `{ game: GameSnapshot }` containing the updated `scores`, `guesses`, and `strokes`. This
+  allows the submitting guesser to see their result immediately without waiting for the next
+  poll cycle.
 
 ### Key Entities
 
 - **Guess**: A single guess record within a round.
   Attributes: `participantId` (string), `text` (string, trimmed), `correct` (boolean),
   `submittedAt` (ISO-8601 string).
-- **Round** (extended from Scenario 2): Gains `guesses: Guess[]` (append-only, starts empty)
-  and `scores: Record<string, number>` (keyed by `participantId`, all start at `0`).
-- **GameSnapshot** (extended from Scenario 2): Gains `guesses: Guess[]` and
-  `scores: Record<string, number>` in both drawer and guesser views. If canvas sync is in
-  scope (see FR-003 clarification), the snapshot also gains a drawing state field.
+- **Stroke**: An ordered array of `{x: number, y: number}` points representing one
+  continuous pen-down-to-pen-up movement on the canvas.
+- **Round** (extended from Scenario 2): Gains three new fields:
+  - `strokes: Stroke[]` — append-only array of completed strokes; emptied on clear; starts `[]`
+  - `guesses: Guess[]` — append-only history; starts `[]`
+  - `scores: Record<string, number>` — keyed by `participantId`; all values start at `0`
+- **GameSnapshot** (extended from Scenario 2): Gains `strokes: Stroke[]`, `guesses: Guess[]`,
+  and `scores: Record<string, number>` in both drawer and guesser views. The `secretWord`
+  field remains present only in the drawer's view (unchanged from Scenario 2).
 
 ---
 
@@ -266,9 +291,9 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
   across server restarts.
 - A round never ends within Scenario 3 — there is no end-of-round trigger here. The round
   continues until Scenario 4 introduces result/restart logic.
-- The `POST /rooms/:code/guess` endpoint treats `participantId` as self-reported (consistent
-  with `GET /rooms/:code/game`). The only server-side enforcement is that the drawer cannot
-  guess — no participant list membership check is assumed unless clarified.
+- The `POST /rooms/:code/guess` endpoint validates that `participantId` exists in
+  `room.participants` before processing. An unknown `participantId` returns `404 Not Found`.
+  This is consistent with the game-rule integrity approach used throughout prior scenarios.
 - Drawing canvas uses the standard HTML5 Canvas API with mouse/touch pointer events. No
   third-party drawing libraries are assumed.
 - Display names in guess history are resolved client-side from `game.participants` (already
@@ -278,6 +303,18 @@ guess, confirm that guesser's score shows 100 on both tabs within ~2s.
 - The ~2s polling interval established in Scenario 2 is used unchanged. Guess history and
   scores are included in the existing `GET /rooms/:code/game` response — no new polling
   endpoint is introduced.
+
+---
+
+## Clarifications
+
+### Session 2026-06-01
+
+- Q: Should drawing strokes be stored server-side and synced to guessers via polling, or is the canvas local to the drawer only? → A: Strokes are stored server-side in `currentRound.strokes` and included in `GET /rooms/:code/game` so guessers see the current drawing update on each ~2s poll cycle.
+- Q: How does the drawer's canvas state reach the server — per-point streaming, per-stroke on pen-lift, or batched? → A: One completed stroke is submitted to `POST /rooms/:code/canvas/stroke` on pen-lift; "Clear Canvas" calls `DELETE /rooms/:code/canvas` to empty the strokes array. Storage format is `Array<Array<{x: number, y: number}>>`.
+- Q: Can the same guesser score 100 multiple times by submitting the correct word repeatedly, or is scoring capped at one event per guesser per round? → A: Capped at one scoring event per participant per round. A second correct submission is appended to history as `correct: true` but adds 0 to the score.
+- Q: What does `POST /rooms/:code/guess` return on success — full game snapshot, minimal acknowledgment, or no body? → A: Returns `{ game: GameSnapshot }` with updated `scores`, `guesses`, and `strokes` so the guesser sees their result immediately without waiting for the next poll.
+- Q: Should the server validate that `participantId` on a guess submission exists in `room.participants`, or accept any ID as long as it is not the drawer? → A: Server validates membership; returns `404 Not Found` with `"Participant not found"` for absent or unknown IDs.
 
 ---
 

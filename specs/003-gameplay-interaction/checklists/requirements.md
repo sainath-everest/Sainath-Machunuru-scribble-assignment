@@ -2,6 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-06-01
+**Updated**: 2026-06-01 (post-clarification session)
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -13,8 +14,8 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
-- [X] Requirements are testable and unambiguous (where not blocked by clarifications)
+- [X] No [NEEDS CLARIFICATION] markers remain
+- [X] Requirements are testable and unambiguous
 - [X] Success criteria are measurable
 - [X] Success criteria are technology-agnostic (no implementation details)
 - [X] All acceptance scenarios are defined
@@ -24,18 +25,17 @@
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria (blocked by clarifications)
+- [X] All functional requirements have clear acceptance criteria
 - [X] User scenarios cover primary flows
 - [X] Feature meets measurable outcomes defined in Success Criteria
 - [X] No implementation details leak into specification
 
 ## Notes
 
-- 3 [NEEDS CLARIFICATION] markers remain in the spec (US1/US3, US4, FR-003/FR-017).
-  These are presented to the user below for resolution before `/speckit-plan`.
-- The canvas-sync question (FR-003) is the highest-impact blocker — it determines whether
-  the backend `Round` model gains a drawing-state field and whether the polling response
-  size grows significantly.
-- The re-guessing/scoring cap question (FR-017/US4 SC3) determines backend scoring logic.
-- The edge case about unknown participantId is documented but can be resolved with a
-  reasonable default (403 Forbidden).
+- All 5 clarification questions resolved in session 2026-06-01.
+- Canvas sync (B): strokes stored server-side, polled via GET /rooms/:code/game.
+- Canvas update mechanism (B): per-stroke POST on pen-lift; DELETE /rooms/:code/canvas to clear.
+- Scoring cap (B): one scoring event per participant per round.
+- Guess response (A): POST /rooms/:code/guess returns { game: GameSnapshot }.
+- Unknown participantId (A): 404 Not Found with "Participant not found".
+- Spec is ready for /speckit-plan.
