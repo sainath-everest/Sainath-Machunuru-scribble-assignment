@@ -9,11 +9,22 @@ export interface Participant {
 export interface RoomSnapshot {
   code: string;
   hostId: string;
-  status: "lobby";
+  status: "lobby" | "playing";
   participants: Participant[];
   availableWords: string[];
   roles: ParticipantRole[];
 }
+
+export interface GameSnapshotBase {
+  code: string;
+  status: "playing";
+  roundNumber: number;
+  drawerId: string;
+  participants: Participant[];
+}
+
+// secretWord is present only in the drawer's response — absent (not null) for guessers
+export type GameSnapshot = GameSnapshotBase & { secretWord?: string };
 
 export interface RoomSessionResponse {
   participantId: string;
@@ -58,5 +69,15 @@ export const api = {
   fetchRoom(code: string, participantId?: string) {
     const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
     return request<{ room: RoomSnapshot }>(`/rooms/${encodeURIComponent(code)}${query}`);
+  },
+  startGame(code: string, participantId: string) {
+    return request<{ room: RoomSnapshot }>(`/rooms/${encodeURIComponent(code)}/start`, {
+      method: "POST",
+      body: JSON.stringify({ participantId })
+    });
+  },
+  fetchGameState(code: string, participantId?: string) {
+    const query = participantId ? `?participantId=${encodeURIComponent(participantId)}` : "";
+    return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/game${query}`);
   }
 };

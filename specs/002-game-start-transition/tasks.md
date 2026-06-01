@@ -31,8 +31,8 @@ phase that unblocks all stories. All Scenario 1 files and tasks are untouched.
 
 **Purpose**: Verify the Scenario 1 baseline is green before any Scenario 2 changes begin.
 
-- [ ] T001 [P] Verify backend builds: run `cd backend && npm run build` — resolve any pre-existing TypeScript errors
-- [ ] T002 [P] Verify frontend builds: run `cd frontend && npm run build` — resolve any pre-existing TypeScript errors
+- [X] T001 [P] Verify backend builds: run `cd backend && npm run build` — resolve any pre-existing TypeScript errors
+- [X] T002 [P] Verify frontend builds: run `cd frontend && npm run build` — resolve any pre-existing TypeScript errors
 
 **Checkpoint**: Both builds green — safe to start Phase 2.
 
@@ -45,11 +45,11 @@ All four tasks touch `backend/src/models/game.ts` and MUST run in order. T005 in
 `currentRound: Round | null` on `Room`, which immediately causes a TypeScript error in
 `roomStore.ts`; T006 patches it before any build checkpoint.
 
-- [ ] T003 Widen `RoomStatus` from literal `"lobby"` to `"lobby" | "playing"` in `backend/src/models/game.ts`
-- [ ] T004 Add `Round` interface (`roundNumber: number`, `drawerId: string`, `secretWord: string`) to `backend/src/models/game.ts` — this type is server-side only and must never be serialized into any shared snapshot
-- [ ] T005 Add `currentRound: Round | null` field to the `Room` interface in `backend/src/models/game.ts` — `null` represents lobby state; a `Round` object represents the active playing state
-- [ ] T006 Add `GameSnapshotBase` interface and `DrawerGameSnapshot` (extends base with `secretWord: string`), `GuesserGameSnapshot` (base only), and `GameSnapshot = DrawerGameSnapshot | GuesserGameSnapshot` union type to `backend/src/models/game.ts`
-- [ ] T007 Fix TypeScript error introduced by T005: add `currentRound: null` to the room object literal inside `createRoom` in `backend/src/services/roomStore.ts`
+- [X] T003 Widen `RoomStatus` from literal `"lobby"` to `"lobby" | "playing"` in `backend/src/models/game.ts`
+- [X] T004 Add `Round` interface (`roundNumber: number`, `drawerId: string`, `secretWord: string`) to `backend/src/models/game.ts` — this type is server-side only and must never be serialized into any shared snapshot
+- [X] T005 Add `currentRound: Round | null` field to the `Room` interface in `backend/src/models/game.ts` — `null` represents lobby state; a `Round` object represents the active playing state
+- [X] T006 Add `GameSnapshotBase` interface and `DrawerGameSnapshot` (extends base with `secretWord: string`), `GuesserGameSnapshot` (base only), and `GameSnapshot = DrawerGameSnapshot | GuesserGameSnapshot` union type to `backend/src/models/game.ts`
+- [X] T007 Fix TypeScript error introduced by T005: add `currentRound: null` to the room object literal inside `createRoom` in `backend/src/services/roomStore.ts`
 
 > T007 is a one-line patch. It is placed here (not in Phase 3) because the build CANNOT pass
 > until both T005 (model change) and T007 (service patch) are applied together.
@@ -73,7 +73,7 @@ responses per `quickstart.md` Steps 7–9.
 
 ### Backend Implementation (T008–T010, strictly sequential on `roomStore.ts` then `rooms.ts`)
 
-- [ ] T008 [US1] Add `startGame(code: string, participantId: string)` to `backend/src/services/roomStore.ts`:
+- [X] T008 [US1] Add `startGame(code: string, participantId: string)` to `backend/src/services/roomStore.ts`:
   - Look up room; return `null` if not found
   - Throw `HttpError(409, "Game already started")` if `room.status === "playing"`
   - Throw `HttpError(403, "Only the host can start the game")` if `participantId !== room.hostId`
@@ -83,12 +83,12 @@ responses per `quickstart.md` Steps 7–9.
   - Mutate: `room.status = "playing"`, `room.currentRound = { roundNumber: 1, drawerId, secretWord }`, `room.updatedAt = now()`
   - Persist with `rooms.set(room.code, room)` and return `{ room: cloneRoom(room) }`
 
-- [ ] T009 [P] [US1] Add `startRoomSchema` to `backend/src/api/schemas.ts`:
+- [X] T009 [P] [US1] Add `startRoomSchema` to `backend/src/api/schemas.ts`:
   ```
   z.object({ participantId: z.string({ required_error: "Participant ID is required" }).trim().min(1, "Participant ID is required") })
   ```
 
-- [ ] T010 [US1] Add `POST /:code/start` route to the `createRoomsRouter` function in `backend/src/api/rooms.ts`:
+- [X] T010 [US1] Add `POST /:code/start` route to the `createRoomsRouter` function in `backend/src/api/rooms.ts`:
   - Parse params with `roomCodeParamsSchema`, body with `startRoomSchema`
   - Call `startGame(code.toUpperCase(), participantId)`
   - If `null`, throw `HttpError(404, "Unable to load room")`
@@ -98,7 +98,7 @@ responses per `quickstart.md` Steps 7–9.
 
 ### Backend Unit Tests (T011–T012, parallelizable — different files)
 
-- [ ] T011 [P] [US1] [US3] Add `startGame` unit tests to `backend/src/services/roomStore.test.ts`:
+- [X] T011 [P] [US1] [US3] Add `startGame` unit tests to `backend/src/services/roomStore.test.ts`:
   - Happy path: `startGame` returns a room with `status: "playing"` and `currentRound` set
   - Drawer rule — host present: `drawerId` equals the host's `participantId`
   - Drawer rule — host absent: `drawerId` equals `participants[0].id` (the first joiner)
@@ -107,13 +107,13 @@ responses per `quickstart.md` Steps 7–9.
   - 400 guard: calling `startGame` on a 1-player room throws with status 400
   - 403 guard: calling `startGame` with a non-host `participantId` throws with status 403
 
-- [ ] T012 [P] [US1] Add `startRoomSchema` unit tests to `backend/src/api/schemas.test.ts`:
+- [X] T012 [P] [US1] Add `startRoomSchema` unit tests to `backend/src/api/schemas.test.ts`:
   - Missing `participantId` throws `"Participant ID is required"`
   - Blank/whitespace-only `participantId` throws `"Participant ID is required"`
 
 ### Frontend API Method (T013, parallelizable — different project)
 
-- [ ] T013 [P] [US1] Add `startGame(code: string, participantId: string)` method to `frontend/src/services/api.ts`:
+- [X] T013 [P] [US1] Add `startGame(code: string, participantId: string)` method to `frontend/src/services/api.ts`:
   ```ts
   startGame(code, participantId) {
     return request<{ room: RoomSnapshot }>(`/rooms/${encodeURIComponent(code)}/start`, {
@@ -142,18 +142,18 @@ Steps 4–6.
 
 ### Backend Implementation (T014–T016, strictly sequential on `roomStore.ts` then `rooms.ts`)
 
-- [ ] T014 [US2] Add `toGameSnapshot(room: Room, viewerParticipantId?: string): GameSnapshot` to `backend/src/services/roomStore.ts`:
+- [X] T014 [US2] Add `toGameSnapshot(room: Room, viewerParticipantId?: string): GameSnapshot` to `backend/src/services/roomStore.ts`:
   - Assert `room.currentRound !== null` (only callable in `"playing"` state)
   - Build base: `{ code, status: "playing", roundNumber, drawerId, participants: [...] }`
   - If `viewerParticipantId === room.currentRound.drawerId` → spread `{ secretWord }` into response
   - Otherwise → return base without `secretWord` (field absent, not null)
 
-- [ ] T015 [P] [US2] Add `gameViewerQuerySchema` to `backend/src/api/schemas.ts`:
+- [X] T015 [P] [US2] Add `gameViewerQuerySchema` to `backend/src/api/schemas.ts`:
   ```ts
   z.object({ participantId: z.string().optional() })
   ```
 
-- [ ] T016 [US2] Add `GET /:code/game` route to the `createRoomsRouter` function in `backend/src/api/rooms.ts`:
+- [X] T016 [US2] Add `GET /:code/game` route to the `createRoomsRouter` function in `backend/src/api/rooms.ts`:
   - Parse params with `roomCodeParamsSchema`, query with `gameViewerQuerySchema`
   - Look up room with `getRoom(code.toUpperCase())`; throw `HttpError(404, ...)` if not found
   - If `room.status !== "playing"` → throw `HttpError(409, "Game has not started yet")`
@@ -163,14 +163,14 @@ Steps 4–6.
 
 ### Backend Unit Tests (T017, parallelizable — different section of existing test file)
 
-- [ ] T017 [P] [US2] Add `toGameSnapshot` unit tests to `backend/src/services/roomStore.test.ts`:
+- [X] T017 [P] [US2] Add `toGameSnapshot` unit tests to `backend/src/services/roomStore.test.ts`:
   - Drawer view: calling with drawer's `participantId` returns a snapshot **with** `secretWord` field present and matching `currentRound.secretWord`
   - Guesser view: calling with a non-drawer `participantId` returns a snapshot where `"secretWord" in snapshot === false` (field absent, not null)
   - No-identity view: calling without `participantId` returns a snapshot where `"secretWord" in snapshot === false`
 
 ### Frontend Types & State (T018–T020, strictly sequential within frontend)
 
-- [ ] T018 [P] [US2] Add `GameSnapshot` type and `fetchGameState` method to `frontend/src/services/api.ts`:
+- [X] T018 [P] [US2] Add `GameSnapshot` type and `fetchGameState` method to `frontend/src/services/api.ts`:
   ```ts
   // Type
   export interface GameSnapshotBase {
@@ -185,19 +185,19 @@ Steps 4–6.
   }
   ```
 
-- [ ] T019 [US2] Create `frontend/src/state/gameStore.ts` (new file) following the exact
+- [X] T019 [US2] Create `frontend/src/state/gameStore.ts` (new file) following the exact
   `useSyncExternalStore` + class pattern as `roomStore.ts`:
   - `GameState`: `{ game: GameSnapshot | null; participantId: string | null; error: string | null; isLoading: boolean }`
   - `GameStore` class: `setGameSession(game, participantId)`, `fetchGame()` (calls `api.fetchGameState`), `reset()`
   - Export: `GameStoreProvider` (React provider wrapping `useRef<GameStore>`), `useGameStore`, `useGameState`
 
-- [ ] T020 [US2] Add `<GameStoreProvider>` to the app root in `frontend/src/main.tsx`:
+- [X] T020 [US2] Add `<GameStoreProvider>` to the app root in `frontend/src/main.tsx`:
   - Wrap it around (or alongside) the existing `<RoomStoreProvider>` so `useGameStore` is
     available on all routes
 
 ### Frontend Game Screen (T021, depends on T019/T020)
 
-- [ ] T021 [US2] Rewrite `frontend/src/pages/GamePage.tsx` to use game state:
+- [X] T021 [US2] Rewrite `frontend/src/pages/GamePage.tsx` to use game state:
   - Replace `useRoomState` import with `useGameState` from `gameStore`
   - Guard: if `game === null`, navigate to `/` and return `null`
   - Add `setInterval` polling `gameStore.fetchGame()` every 2000ms; `clearInterval` on unmount
@@ -222,7 +222,7 @@ Tab B (non-host) is polling → navigates within ~2s. See `quickstart.md` Steps 
 
 **Note**: Both T022 and T023 modify `frontend/src/pages/LobbyPage.tsx` and MUST run sequentially.
 
-- [ ] T022 [US1] Update `frontend/src/pages/LobbyPage.tsx` — replace the Start Game button's
+- [X] T022 [US1] Update `frontend/src/pages/LobbyPage.tsx` — replace the Start Game button's
   `onClick={() => navigate("/game")}` with an async `handleStartGame` function:
   ```ts
   async function handleStartGame() {
@@ -240,7 +240,7 @@ Tab B (non-host) is polling → navigates within ~2s. See `quickstart.md` Steps 
   Display `startError` as an inline error near the Start Game button.
   Pass `disabled={!canStart || isStarting}` to the button and track `isStarting` state.
 
-- [ ] T023 [US4] Update `frontend/src/pages/LobbyPage.tsx` — extend the existing `setInterval`
+- [X] T023 [US4] Update `frontend/src/pages/LobbyPage.tsx` — extend the existing `setInterval`
   poll callback to detect game start for non-host players:
   ```ts
   const updated = await roomStore.fetchRoom();
@@ -261,10 +261,10 @@ clicking Start Game.
 **Purpose**: Confirm all Scenario 2 changes compile, all unit tests pass, and end-to-end
 acceptance criteria are verified.
 
-- [ ] T024 [P] Run `cd backend && npm run build` — zero TypeScript errors
-- [ ] T025 [P] Run `cd frontend && npm run build` — zero TypeScript errors
-- [ ] T026 [P] Run `cd backend && npm test` — all unit tests pass (T011, T012, T017 + all Scenario 1 tests)
-- [ ] T027 Complete manual two-tab validation following `specs/002-game-start-transition/quickstart.md` Steps 1–10
+- [X] T024 [P] Run `cd backend && npm run build` — zero TypeScript errors
+- [X] T025 [P] Run `cd frontend && npm run build` — zero TypeScript errors
+- [X] T026 [P] Run `cd backend && npm test` — all unit tests pass (T011, T012, T017 + all Scenario 1 tests)
+- [X] T027 Complete manual two-tab validation following `specs/002-game-start-transition/quickstart.md` Steps 1–10
 
 ---
 

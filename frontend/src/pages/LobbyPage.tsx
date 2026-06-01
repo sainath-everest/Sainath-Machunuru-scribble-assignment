@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
+import { api } from "../services/api";
+import { useGameStore } from "../state/gameStore";
 import { useRoomState, useRoomStore } from "../state/roomStore";
 
 const POLL_INTERVAL_MS = 2000;
@@ -10,8 +12,11 @@ const POLL_INTERVAL_MS = 2000;
 export function LobbyPage() {
   const navigate = useNavigate();
   const roomStore = useRoomStore();
+  const gameStore = useGameStore();
   const { room, participantId, isLoading } = useRoomState();
   const [pollError, setPollError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -25,8 +30,11 @@ export function LobbyPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        await roomStore.fetchRoom();
+        const updated = await roomStore.fetchRoom();
         setPollError(null);
+        if (updated?.status === "playing") {
+          navigate("/game");
+        }
       } catch (caughtError) {
         setPollError(caughtError instanceof Error ? caughtError.message : "Unable to refresh room");
       }
@@ -39,6 +47,22 @@ export function LobbyPage() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleStartGame() {
+    if (!room || !participantId) return;
+
+    try {
+      setStartError(null);
+      setIsStarting(true);
+      await api.startGame(room.code, participantId);
+      gameStore.reset();
+      navigate("/game");
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Unable to start game");
+    } finally {
+      setIsStarting(false);
+    }
+  }
 
   if (!room) {
     return null;
@@ -90,13 +114,16 @@ export function LobbyPage() {
 
       <div className="button-row button-row--spread">
         {isHost ? (
-          <button
-            className="button button--primary"
-            disabled={!canStart}
-            onClick={() => navigate("/game")}
-          >
-            Start Game
-          </button>
+          <>
+            {startError ? <p className="form__error">{startError}</p> : null}
+            <button
+              className="button button--primary"
+              disabled={!canStart || isStarting}
+              onClick={handleStartGame}
+            >
+              {isStarting ? "Starting…" : "Start Game"}
+            </button>
+          </>
         ) : null}
       </div>
     </section>

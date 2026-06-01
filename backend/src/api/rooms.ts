@@ -1,12 +1,14 @@
 import { Router } from "express";
 import {
   createRoomSchema,
+  gameViewerQuerySchema,
   HttpError,
   joinRoomSchema,
   roomCodeParamsSchema,
-  roomViewerQuerySchema
+  roomViewerQuerySchema,
+  startRoomSchema
 } from "./schemas.js";
-import { createRoom, getRoom, joinRoom, toRoomSnapshot } from "../services/roomStore.js";
+import { createRoom, getRoom, joinRoom, startGame, toGameSnapshot, toRoomSnapshot } from "../services/roomStore.js";
 
 export function createRoomsRouter() {
   const router = Router();
@@ -56,6 +58,46 @@ export function createRoomsRouter() {
 
       response.json({
         room: toRoomSnapshot(room, participantId)
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:code/start", (request, response, next) => {
+    try {
+      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { participantId } = startRoomSchema.parse(request.body);
+      const result = startGame(code, participantId);
+
+      if (!result) {
+        throw new HttpError(404, "Unable to load room");
+      }
+
+      response.json({
+        room: toRoomSnapshot(result.room)
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:code/game", (request, response, next) => {
+    try {
+      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { participantId } = gameViewerQuerySchema.parse(request.query);
+      const room = getRoom(code.toUpperCase());
+
+      if (!room) {
+        throw new HttpError(404, "Unable to load room");
+      }
+
+      if (room.status !== "playing" || !room.currentRound) {
+        throw new HttpError(409, "Game has not started yet");
+      }
+
+      response.json({
+        game: toGameSnapshot(room, participantId)
       });
     } catch (error) {
       next(error);

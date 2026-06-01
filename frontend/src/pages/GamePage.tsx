@@ -1,15 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
 import { GuessForm } from "../components/GuessForm";
 import { ResultPanel } from "../components/ResultPanel";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
 import { Scoreboard } from "../components/Scoreboard";
+import { useGameState, useGameStore } from "../state/gameStore";
 import { useRoomState } from "../state/roomStore";
+
+const POLL_INTERVAL_MS = 2000;
 
 export function GamePage() {
   const navigate = useNavigate();
+  const gameStore = useGameStore();
+  const { game, error: gameError } = useGameState();
   const { room, participantId } = useRoomState();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!room) {
@@ -17,18 +23,36 @@ export function GamePage() {
     }
   }, [navigate, room]);
 
+  useEffect(() => {
+    if (!room) return;
+
+    gameStore.fetchGame(room.code, participantId ?? undefined);
+
+    pollRef.current = setInterval(() => {
+      gameStore.fetchGame(room.code, participantId ?? undefined);
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      if (pollRef.current !== null) {
+        clearInterval(pollRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!room) {
     return null;
   }
 
-  const viewer = room.participants.find((participant) => participant.id === participantId) ?? null;
+  const viewer = room.participants.find((p) => p.id === participantId) ?? null;
+  const isDrawer = game !== null && game.drawerId === participantId;
 
   return (
     <section className="panel game-page">
       <div className="game-page__header">
         <div className="game-page__header-left">
-          <span className="section-kicker">Round 1</span>
-          <h1 className="game-page__title">Guess the Word!</h1>
+          <span className="section-kicker">Round {game?.roundNumber ?? 1}</span>
+          <h1 className="game-page__title">{isDrawer ? "Draw the Word!" : "Guess the Word!"}</h1>
         </div>
         <RoomCodeBadge code={room.code} />
       </div>
@@ -40,11 +64,22 @@ export function GamePage() {
         </aside>
 
         <div className="game-page__main">
+          {isDrawer && game?.secretWord ? (
+            <Card title="Your Word">
+              <p className="secret-word-banner">
+                Draw: <strong>{game.secretWord}</strong>
+              </p>
+            </Card>
+          ) : null}
           <Card title="Canvas">
-            <div className="canvas-placeholder" style={{ minHeight: '500px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb' }}>
-              Waiting for drawer...
+            <div
+              className="canvas-placeholder"
+              style={{ minHeight: "500px", backgroundColor: "#ffffff", border: "1px solid #e5e7eb" }}
+            >
+              {game ? "Waiting for drawer to start drawing…" : "Loading game…"}
             </div>
           </Card>
+          {gameError ? <p className="form__error" style={{ marginTop: "8px" }}>{gameError}</p> : null}
         </div>
 
         <aside className="game-page__sidebar game-page__sidebar--right">
@@ -55,15 +90,21 @@ export function GamePage() {
                 <dd>{viewer?.name ?? "Unknown player"}</dd>
               </div>
               <div>
+                <dt>Role</dt>
+                <dd>{game ? (isDrawer ? "Drawer" : "Guesser") : "—"}</dd>
+              </div>
+              <div>
                 <dt>Status</dt>
                 <dd>Playing</dd>
               </div>
             </dl>
           </Card>
 
-          <Card title="Your Guess">
-            <GuessForm />
-          </Card>
+          {!isDrawer ? (
+            <Card title="Your Guess">
+              <GuessForm />
+            </Card>
+          ) : null}
         </aside>
       </div>
 
