@@ -55,6 +55,9 @@ order.
    level.
 5. **Given** the room is not in `"playing"` status (e.g., `"lobby"`), **When** any participant
    calls the end-round endpoint, **Then** the server returns `409 Conflict: "Round is not active"`.
+6. **Given** the room is in `"playing"` status, **When** a non-host participant views the game
+   screen, **Then** the "End Round" button is not rendered — only the host sees and can
+   interact with it.
 
 ---
 
@@ -89,6 +92,9 @@ submitted during the round, in order, with participant names and correct/incorre
 5. **Given** a guesser correctly guessed the word during the round, **When** they view the
    result screen, **Then** their correct guess entry in the history has a visual indicator
    distinguishing it from incorrect entries.
+6. **Given** the room is in `"result"` status and strokes exist in the API payload, **When**
+   any participant views the result screen, **Then** no canvas drawing is rendered — the result
+   screen displays only the secret word, scoreboard, and guess history.
 
 ---
 
@@ -124,6 +130,10 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
 6. **Given** a restart has returned the room to `"lobby"`, **When** the host starts a new game,
    **Then** the new round initialises with fresh scores of 0, an empty strokes array, an empty
    guesses array, and a newly assigned drawer and secret word — exactly as Scenario 2 specifies.
+7. **Given** a non-host participant is on the result screen and their `GET /rooms/:code/game`
+   poll returns a no-active-round signal after the host has restarted, **When** the poll
+   response is processed, **Then** the non-host player's frontend automatically navigates to
+   the lobby view within ~2s — no manual action or page reload required.
 
 ---
 
@@ -134,9 +144,10 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
 - What if a guess is submitted after the round has ended (race condition)? → The server checks
   room status is `"playing"` before processing a guess. If status is `"result"`, the server
   returns `409 Conflict: "Round has already ended"`.
-- What if `POST /rooms/:code/canvas/stroke` is called while the room is in `"result"` status? →
-  The server validates room status is `"playing"` before processing canvas mutations. In
-  `"result"` status, `403 Forbidden` or `409 Conflict` is returned.
+- What if `POST /rooms/:code/canvas/stroke` or `DELETE /rooms/:code/canvas` is called while the
+  room is in `"result"` status? → The server validates room status is `"playing"` before
+  processing canvas mutations. In `"result"` status the server returns `409 Conflict:
+  "Round is not active"` — consistent with how the same endpoints behave in `"lobby"` status.
 - What if a non-existent room code is used for any Scenario 4 endpoint? → `404 Not Found`.
 - What happens to in-memory state if the server restarts between end-round and restart? →
   All state is in-memory; a server restart clears everything. This is the accepted limitation
@@ -177,7 +188,14 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
 - **FR-008**: The result screen MUST display the secret word prominently.
 - **FR-009**: The result screen MUST render the scoreboard (all participants, sorted descending
   by score) and the full guess history (chronological, with participant name, guess text, and
-  correct/incorrect indicator) — reusing or extending the components from Scenario 3.
+  correct/incorrect indicator) — reusing or extending the components from Scenario 3. No
+  "winner" label, badge, or highlight is applied to the top scorer; scores are displayed
+  neutrally.
+- **FR-009a**: The result screen MUST NOT render the canvas drawing. The `strokes` field
+  returned in the `GET /rooms/:code/game` response during `"result"` status is present as part
+  of the shared `GameSnapshot` shape and MUST be ignored by the result screen UI. The three
+  and only three visual elements on the result screen are: the secret word, the scoreboard,
+  and the guess history.
 
 **Restart Transition (FR-010 – FR-015)**
 
@@ -197,17 +215,29 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
   full participant list intact. The room is now in a state identical to Scenario 1 post-join —
   ready for the host to start a new game per Scenario 2 rules.
 
-**Frontend Lifecycle (FR-016 – FR-019)**
+**Frontend Lifecycle (FR-016 – FR-020)**
 
-- **FR-016**: The frontend game-screen polling (existing ~2s interval from Scenario 2) MUST
-  detect the `"result"` status and transition the UI accordingly without requiring a page reload.
+- **FR-016**: The frontend `GET /rooms/:code/game` polling (existing ~2s interval from Scenario 2)
+  MUST detect the `"result"` status and transition all players' UI to the result screen without
+  requiring a page reload. The same poll MUST also detect a post-restart signal (see FR-018a)
+  and navigate all players back to the lobby.
 - **FR-017**: The result screen MUST include a "Restart" button visible and enabled only for the
   host participant. Non-host participants see the button disabled or hidden.
-- **FR-018**: When the host clicks "Restart", the frontend MUST call `POST /rooms/:code/restart`,
-  and on success update the room state to `"lobby"` and navigate all players back to the lobby
-  view.
-- **FR-019**: After restart, the lobby polling (from Scenario 1) MUST resume and reflect the
-  current participant list — no re-join or page reload required for any participant.
+- **FR-018**: When the host clicks "Restart", the frontend MUST call `POST /rooms/:code/restart`.
+  On success the host's frontend updates local room state to `"lobby"` and navigates to the
+  lobby view immediately.
+- **FR-018a**: After a successful restart, `GET /rooms/:code/game` MUST return a response
+  indicating no active round (either `status: "lobby"` in the payload, or a `409 Conflict` with
+  a `"Round is not active"` body). The frontend MUST interpret this signal during result-state
+  polling and automatically navigate the player to the lobby — covering non-host players who
+  never called the restart endpoint.
+- **FR-019**: After all players have navigated to the lobby, the lobby polling from Scenario 1
+  (`GET /rooms/:code`, ~2s interval) MUST resume automatically and reflect the full participant
+  list — no re-join or page reload required for any participant.
+- **FR-020**: On the game screen during `"playing"` status, the "End Round" button MUST be
+  visible and enabled only for the host participant. Non-host players MUST NOT see the button
+  at all — consistent with the "Restart" button pattern on the result screen (FR-017) and the
+  "Start Game" button pattern from Scenario 1.
 
 ### Key Entities
 
@@ -242,6 +272,18 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
 
 ---
 
+## Clarifications
+
+### Session 2026-06-02
+
+- Q: Does the round end only when the host explicitly triggers it, or can it also end automatically once every eligible guesser has submitted a correct guess? → A: Host-only manual trigger. The round stays active indefinitely until the host clicks "End Round", regardless of guess outcomes. Auto-end on all-correct is out of scope.
+- Q: Should the result screen designate a single "winner" with any distinct visual treatment, or simply list all final scores with no winner concept? → A: No winner designation. The result screen shows all participants' scores sorted descending. No label, badge, or highlight distinguishes the top scorer.
+- Q: How do non-host participants detect that a restart has occurred and navigate back to the lobby view? → A: The existing `GET /rooms/:code/game` poll returns `status: "lobby"` (or equivalent no-active-round signal) after restart. The frontend interprets this and automatically navigates all polling participants to the lobby within ~2s — no manual action required from non-host players.
+- Q: On the game screen during playing state, is the "End Round" button visible only to the host, or visible to all players with server-side enforcement only? → A: The "End Round" button is visible and enabled only for the host. Non-host players do not see it at all — consistent with the "Restart" button pattern on the result screen.
+- Q: Should the final canvas drawing be displayed on the result screen, or is it included in the API payload only and not rendered in the result UI? → A: The canvas is NOT rendered on the result screen. The `strokes` field is present in the API response as part of the shared GameSnapshot shape but the result screen UI ignores it. The result screen shows only: secret word, scoreboard, and guess history.
+
+---
+
 ## Assumptions
 
 - Scenarios 1, 2, and 3 are fully implemented. The room can reach `"playing"` status, and the
@@ -252,7 +294,7 @@ no residual round data (word, drawer, scores, guesses, canvas) on either tab.
   value to the `status` field, not a new endpoint.
 - The ~2s frontend polling interval from Scenario 2/3 is reused unchanged for result-state
   detection.
-- No timer or automatic end-of-round is introduced. The host manually ends the round.
+- The round ends only when the host explicitly triggers "End Round". No automatic end-of-round occurs (not on timer, not on all-correct guesses, not on any game event). This is consistent with the README "Explicitly Out of Scope" list which excludes timers, countdowns, and automatic events.
 - No minimum participant count is required to end a round or restart.
 - After restart, the host must manually click "Start Game" again (Scenario 2 flow) to begin a
   new round. Restart does not auto-start a new game.
