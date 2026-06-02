@@ -655,6 +655,59 @@ input {
   font-size: 1rem;
 }
 
+/* ── ResultScreen ── */
+.result-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 32px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.result-screen__header {
+  text-align: center;
+}
+
+.result-screen__title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+}
+
+.result-screen__word {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary, #6366f1);
+  text-align: center;
+  margin: 8px 0 0;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.result-screen__layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.result-screen__column {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .result-screen__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── DrawingCanvas ── */
 .drawing-canvas-container {
   display: flex;

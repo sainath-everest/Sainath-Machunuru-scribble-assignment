@@ -1,29 +1,40 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
 import { DrawingCanvas } from "../components/DrawingCanvas";
 import { GuessForm } from "../components/GuessForm";
 import { ResultPanel } from "../components/ResultPanel";
+import { ResultScreen } from "../components/ResultScreen";
 import { RoomCodeBadge } from "../components/RoomCodeBadge";
 import { Scoreboard } from "../components/Scoreboard";
 import { api, type StrokePoint } from "../services/api";
 import { useGameState, useGameStore } from "../state/gameStore";
-import { useRoomState } from "../state/roomStore";
+import { useRoomState, useRoomStore } from "../state/roomStore";
 
 const POLL_INTERVAL_MS = 2000;
 
 export function GamePage() {
   const navigate = useNavigate();
   const gameStore = useGameStore();
-  const { game, error: gameError } = useGameState();
+  const roomStore = useRoomStore();
+  const { game, error: gameError, roundEnded } = useGameState();
   const { room, participantId } = useRoomState();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isEndingRound, setIsEndingRound] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
 
   useEffect(() => {
     if (!room) {
       navigate("/", { replace: true });
     }
   }, [navigate, room]);
+
+  useEffect(() => {
+    if (roundEnded) {
+      gameStore.reset();
+      navigate("/lobby", { replace: true });
+    }
+  }, [roundEnded, gameStore, navigate]);
 
   useEffect(() => {
     if (!room) return;
@@ -65,12 +76,44 @@ export function GamePage() {
     }
   }, [room, participantId, gameStore]);
 
+  const handleEndRound = useCallback(async () => {
+    if (!room || !participantId) return;
+    setIsEndingRound(true);
+    await gameStore.endRound(room.code, participantId);
+    setIsEndingRound(false);
+  }, [room, participantId, gameStore]);
+
+  const handleRestart = useCallback(async () => {
+    if (!room || !participantId) return;
+    setIsRestarting(true);
+    const updatedRoom = await gameStore.restartGame(room.code, participantId);
+    if (updatedRoom) {
+      roomStore.setRoomSnapshot(updatedRoom);
+    }
+    setIsRestarting(false);
+  }, [room, participantId, gameStore, roomStore]);
+
   if (!room) {
     return null;
   }
 
   const viewer = room.participants.find((p) => p.id === participantId) ?? null;
   const isDrawer = game !== null && game.drawerId === participantId;
+  const isHost = participantId === room.hostId;
+
+  if (game?.status === "result") {
+    return (
+      <ResultScreen
+        secretWord={game.secretWord}
+        scores={game.scores}
+        participants={game.participants}
+        guesses={game.guesses}
+        isHost={isHost}
+        isRestarting={isRestarting}
+        onRestart={handleRestart}
+      />
+    );
+  }
 
   return (
     <section className="panel game-page">
@@ -153,6 +196,15 @@ export function GamePage() {
       </div>
 
       <div className="button-row">
+        {isHost && game?.status === "playing" && (
+          <button
+            className="button button--primary"
+            onClick={handleEndRound}
+            disabled={isEndingRound}
+          >
+            {isEndingRound ? "Ending…" : "End Round"}
+          </button>
+        )}
         <button className="button button--secondary" onClick={() => navigate("/lobby")}>
           Exit Game
         </button>

@@ -3,15 +3,17 @@ import {
   addStrokeSchema,
   canvasActionSchema,
   createRoomSchema,
+  endRoundSchema,
   gameViewerQuerySchema,
   HttpError,
   joinRoomSchema,
+  restartSchema,
   roomCodeParamsSchema,
   roomViewerQuerySchema,
   startRoomSchema,
   submitGuessSchema
 } from "./schemas.js";
-import { addStroke, clearCanvas, createRoom, getRoom, joinRoom, startGame, submitGuess, toGameSnapshot, toRoomSnapshot } from "../services/roomStore.js";
+import { addStroke, clearCanvas, createRoom, endRound, getRoom, joinRoom, restartGame, startGame, submitGuess, toGameSnapshot, toRoomSnapshot } from "../services/roomStore.js";
 
 export function createRoomsRouter() {
   const router = Router();
@@ -95,13 +97,35 @@ export function createRoomsRouter() {
         throw new HttpError(404, "Unable to load room");
       }
 
-      if (room.status !== "playing" || !room.currentRound) {
+      if ((room.status !== "playing" && room.status !== "result") || !room.currentRound) {
         throw new HttpError(409, "Game has not started yet");
       }
 
       response.json({
         game: toGameSnapshot(room, participantId)
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:code/end", (request, response, next) => {
+    try {
+      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { participantId } = endRoundSchema.parse(request.body);
+      const result = endRound(code, participantId);
+      response.json({ room: toRoomSnapshot(result.room) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/:code/restart", (request, response, next) => {
+    try {
+      const { code } = roomCodeParamsSchema.parse(request.params);
+      const { participantId } = restartSchema.parse(request.body);
+      const result = restartGame(code, participantId);
+      response.json({ room: toRoomSnapshot(result.room) });
     } catch (error) {
       next(error);
     }

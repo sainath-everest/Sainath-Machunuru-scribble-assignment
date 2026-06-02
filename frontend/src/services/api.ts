@@ -9,7 +9,7 @@ export interface Participant {
 export interface RoomSnapshot {
   code: string;
   hostId: string;
-  status: "lobby" | "playing";
+  status: "lobby" | "playing" | "result";
   participants: Participant[];
   availableWords: string[];
   roles: ParticipantRole[];
@@ -31,7 +31,7 @@ export interface GuessEntry {
 
 export interface GameSnapshotBase {
   code: string;
-  status: "playing";
+  status: "playing" | "result";
   roundNumber: number;
   drawerId: string;
   participants: Participant[];
@@ -40,8 +40,11 @@ export interface GameSnapshotBase {
   scores: Record<string, number>;
 }
 
-// secretWord is present only in the drawer's response — absent (not null) for guessers
-export type GameSnapshot = GameSnapshotBase & { secretWord?: string };
+// "playing": secretWord present only for drawer (absent for guessers)
+// "result": secretWord always present for all participants
+export type GameSnapshot =
+  | (GameSnapshotBase & { status: "playing"; secretWord?: string })
+  | (GameSnapshotBase & { status: "result"; secretWord: string });
 
 export interface RoomSessionResponse {
   participantId: string;
@@ -113,6 +116,18 @@ export const api = {
     return request<{ game: GameSnapshot }>(`/rooms/${encodeURIComponent(code)}/guess`, {
       method: "POST",
       body: JSON.stringify({ participantId, text })
+    });
+  },
+  endRound(code: string, participantId: string) {
+    return request<{ room: RoomSnapshot }>(`/rooms/${encodeURIComponent(code)}/end`, {
+      method: "POST",
+      body: JSON.stringify({ participantId })
+    });
+  },
+  restartGame(code: string, participantId: string) {
+    return request<{ room: RoomSnapshot }>(`/rooms/${encodeURIComponent(code)}/restart`, {
+      method: "POST",
+      body: JSON.stringify({ participantId })
     });
   }
 };

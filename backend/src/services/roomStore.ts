@@ -227,6 +227,51 @@ export function submitGuess(code: string, participantId: string, text: string) {
   return toGameSnapshot(room, participantId);
 }
 
+export function restartGame(code: string, participantId: string) {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (participantId !== room.hostId) {
+    throw new HttpError(403, "Only the host can restart");
+  }
+
+  if (room.status !== "result") {
+    throw new HttpError(409, "Round has not ended");
+  }
+
+  room.status = "lobby";
+  room.currentRound = null;
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return { room: cloneRoom(room) };
+}
+
+export function endRound(code: string, participantId: string) {
+  const room = rooms.get(code.toUpperCase());
+
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (participantId !== room.hostId) {
+    throw new HttpError(403, "Only the host can end the round");
+  }
+
+  if (room.status !== "playing") {
+    throw new HttpError(409, "Round is not active");
+  }
+
+  room.status = "result";
+  room.updatedAt = now();
+  rooms.set(room.code, room);
+
+  return { room: cloneRoom(room) };
+}
+
 export function toRoomSnapshot(room: Room, viewerParticipantId?: string): RoomSnapshot {
   void viewerParticipantId;
 
@@ -249,7 +294,6 @@ export function toGameSnapshot(room: Room, viewerParticipantId?: string): GameSn
 
   const base = {
     code: room.code,
-    status: "playing" as const,
     roundNumber: round.roundNumber,
     drawerId: round.drawerId,
     participants: room.participants.map((participant) => ({ ...participant })),
@@ -258,9 +302,15 @@ export function toGameSnapshot(room: Room, viewerParticipantId?: string): GameSn
     scores: { ...round.scores }
   };
 
-  if (viewerParticipantId === round.drawerId) {
-    return { ...base, secretWord: round.secretWord };
+  // In result state: secretWord visible to ALL participants (clarification Q5 resolved)
+  if (room.status === "result") {
+    return { ...base, status: "result" as const, secretWord: round.secretWord };
   }
 
-  return base;
+  // In playing state: secretWord only for the drawer (unchanged from Scenario 2)
+  if (viewerParticipantId === round.drawerId) {
+    return { ...base, status: "playing" as const, secretWord: round.secretWord };
+  }
+
+  return { ...base, status: "playing" as const };
 }

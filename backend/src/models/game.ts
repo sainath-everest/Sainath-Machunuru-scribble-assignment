@@ -1,5 +1,5 @@
 export type ParticipantRole = "drawer" | "guesser";
-export type RoomStatus = "lobby" | "playing";
+export type RoomStatus = "lobby" | "playing" | "result";
 
 export interface Participant {
   id: string;
@@ -60,7 +60,7 @@ export interface RoomSessionResponse {
 // Game-phase snapshot types — returned by GET /rooms/:code/game
 export interface GameSnapshotBase {
   code: string;
-  status: "playing";
+  status: "playing" | "result";
   roundNumber: number;
   drawerId: string;
   participants: Participant[];
@@ -69,6 +69,10 @@ export interface GameSnapshotBase {
   scores: Record<string, number>;
 }
 
-export type DrawerGameSnapshot = GameSnapshotBase & { secretWord: string };
-export type GuesserGameSnapshot = GameSnapshotBase;
-export type GameSnapshot = DrawerGameSnapshot | GuesserGameSnapshot;
+export type DrawerGameSnapshot = GameSnapshotBase & { status: "playing"; secretWord: string };
+export type GuesserGameSnapshot = GameSnapshotBase & { status: "playing" };
+
+// In result state secretWord is visible to ALL participants
+export type ResultGameSnapshot = GameSnapshotBase & { status: "result"; secretWord: string };
+
+export type GameSnapshot = DrawerGameSnapshot | GuesserGameSnapshot | ResultGameSnapshot;

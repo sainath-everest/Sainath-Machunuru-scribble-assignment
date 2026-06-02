@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addStroke, clearCanvas, createRoom, joinRoom, startGame, submitGuess, toGameSnapshot, toRoomSnapshot } from "./roomStore.js";
+import { addStroke, clearCanvas, createRoom, endRound, joinRoom, restartGame, startGame, submitGuess, toGameSnapshot, toRoomSnapshot } from "./roomStore.js";
 import { STARTER_WORDS } from "../seed/starterData.js";
 
 describe("roomStore", () => {
@@ -332,5 +332,130 @@ describe("submitGuess", () => {
     expect(() => submitGuess(host.room.code, "unknown-id", "something")).toThrow(
       "Participant not found"
     );
+  });
+});
+
+describe("endRound", () => {
+  it("transitions room status from playing to result", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    const result = endRound(host.room.code, host.participantId);
+
+    expect(result.room.status).toBe("result");
+  });
+
+  it("preserves currentRound data after ending (secretWord, guesses, scores intact)", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    const gameResult = startGame(host.room.code, host.participantId)!;
+    const secretWord = gameResult.room.currentRound!.secretWord;
+
+    submitGuess(host.room.code, joiner!.participantId, secretWord);
+    const result = endRound(host.room.code, host.participantId);
+
+    expect(result.room.status).toBe("result");
+    expect(result.room.currentRound).not.toBeNull();
+    expect(result.room.currentRound!.secretWord).toBe(secretWord);
+    expect(result.room.currentRound!.guesses).toHaveLength(1);
+    expect(result.room.currentRound!.scores[joiner!.participantId]).toBe(100);
+  });
+
+  it("throws 404 for an unknown room code", () => {
+    expect(() => endRound("ZZZZ", "any-id")).toThrow("Room not found");
+  });
+
+  it("throws 403 when caller is not the host", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => endRound(host.room.code, joiner!.participantId)).toThrow(
+      "Only the host can end the round"
+    );
+  });
+
+  it("throws 409 when room status is lobby (round not active)", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+
+    expect(() => endRound(host.room.code, host.participantId)).toThrow("Round is not active");
+  });
+
+  it("throws 409 when room is already in result status", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    expect(() => endRound(host.room.code, host.participantId)).toThrow("Round is not active");
+  });
+});
+
+describe("restartGame", () => {
+  it("transitions room status from result to lobby", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const result = restartGame(host.room.code, host.participantId);
+
+    expect(result.room.status).toBe("lobby");
+  });
+
+  it("sets currentRound to null after restart", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const result = restartGame(host.room.code, host.participantId);
+
+    expect(result.room.currentRound).toBeNull();
+  });
+
+  it("preserves all participants after restart", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    const result = restartGame(host.room.code, host.participantId);
+
+    expect(result.room.participants).toHaveLength(2);
+    expect(result.room.participants.map((p) => p.id)).toContain(host.participantId);
+    expect(result.room.participants.map((p) => p.id)).toContain(joiner!.participantId);
+  });
+
+  it("throws 404 for an unknown room code", () => {
+    expect(() => restartGame("ZZZZ", "any-id")).toThrow("Room not found");
+  });
+
+  it("throws 403 when caller is not the host", () => {
+    const host = createRoom("Alice");
+    const joiner = joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+    endRound(host.room.code, host.participantId);
+
+    expect(() => restartGame(host.room.code, joiner!.participantId)).toThrow(
+      "Only the host can restart"
+    );
+  });
+
+  it("throws 409 when room status is playing (round has not ended)", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+    startGame(host.room.code, host.participantId);
+
+    expect(() => restartGame(host.room.code, host.participantId)).toThrow("Round has not ended");
+  });
+
+  it("throws 409 when room status is lobby (not in result state)", () => {
+    const host = createRoom("Alice");
+    joinRoom(host.room.code, "Bob");
+
+    expect(() => restartGame(host.room.code, host.participantId)).toThrow("Round has not ended");
   });
 });

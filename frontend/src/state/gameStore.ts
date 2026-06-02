@@ -12,6 +12,7 @@ export interface GameState {
   game: GameSnapshot | null;
   error: string | null;
   isLoading: boolean;
+  roundEnded: boolean;
 }
 
 type Listener = () => void;
@@ -20,7 +21,8 @@ class GameStore {
   private state: GameState = {
     game: null,
     error: null,
-    isLoading: false
+    isLoading: false,
+    roundEnded: false
   };
 
   private listeners = new Set<Listener>();
@@ -48,7 +50,13 @@ class GameStore {
       return response.game;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to load game state";
-      this.setState({ error: message, isLoading: false });
+      // If the poll 409s while we were in result state, the host has restarted
+      const wasInResultState = this.state.game?.status === "result";
+      this.setState({
+        error: message,
+        isLoading: false,
+        ...(wasInResultState ? { roundEnded: true } : {})
+      });
       return null;
     }
   }
@@ -57,8 +65,31 @@ class GameStore {
     this.setState({ game, error: null });
   }
 
+  async endRound(code: string, participantId: string) {
+    try {
+      const response = await api.endRound(code, participantId);
+      return response.room;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to end round";
+      this.setState({ error: message });
+      return null;
+    }
+  }
+
+  async restartGame(code: string, participantId: string) {
+    try {
+      const response = await api.restartGame(code, participantId);
+      this.setState({ game: null, error: null, roundEnded: true });
+      return response.room;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to restart";
+      this.setState({ error: message });
+      return null;
+    }
+  }
+
   reset() {
-    this.setState({ game: null, error: null, isLoading: false });
+    this.setState({ game: null, error: null, isLoading: false, roundEnded: false });
   }
 }
 
